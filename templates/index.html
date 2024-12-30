@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Representações Sociais</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Representações Sociais</h1>
+        <form id="uploadForm">
+            <!-- Upload de Texto ou Arquivo -->
+            <div class="mb-3">
+                <label for="file" class="form-label">Carregar Arquivo de Texto</label>
+                <input type="file" id="file" name="file" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label for="text" class="form-label">Ou Cole Texto Aqui</label>
+                <textarea id="text" name="text" class="form-control" rows="5" placeholder="Cole ou insira seu texto aqui"></textarea>
+            </div>
+
+            <!-- Menu Filtro de Stopwords -->
+            <div class="mb-3">
+                <label for="stopwords" class="form-label">Filtro de Stopwords</label>
+                <select id="stopwords" name="stopwords" class="form-select">
+                    <option value="com">Com Stopwords</option>
+                    <option value="sem">Sem Stopwords</option>
+                    <option value="stopwords">Apenas Stopwords</option>
+                    <option value="todas">Todas</option>
+                </select>
+            </div>
+
+            <!-- Menu Filtro de Zonas -->
+            <div class="mb-3">
+                <label for="zone" class="form-label">Filtro de Zonas</label>
+                <select id="zone" name="zone" class="form-select">
+                    <option value="Núcleo Central">Núcleo Central</option>
+                    <option value="Zona Periférica 1">Zona Periférica 1</option>
+                    <option value="Zona Periférica 2">Zona Periférica 2</option>
+                    <option value="Zona Periférica 3">Zona Periférica 3</option>
+                    <option value="todas">Todas as Zonas</option>
+                </select>
+            </div>
+
+            <!-- Botão para Processar -->
+            <button type="button" id="processBtn" class="btn btn-primary">Gerar Análise</button>
+        </form>
+
+        <!-- Resultados -->
+        <div id="results" class="mt-5">
+            <h3>Resultados</h3>
+            <!-- A tabela será inserida aqui dinamicamente -->
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            $('#processBtn').on('click', function () {
+                const formData = new FormData($('#uploadForm')[0]);
+                $.ajax({
+                    url: '/process',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (data) {
+                        $('#results').html(data.html);
+                        $('.table').DataTable(); // Inicializar DataTables
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
