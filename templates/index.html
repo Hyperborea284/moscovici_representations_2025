@@ -1,79 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Representações Sociais</title>
+    <title>Ferramenta de Análise</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="mb-4">Representações Sociais</h1>
-        <form id="uploadForm">
-            <!-- Upload de Texto ou Arquivo -->
-            <div class="mb-3">
-                <label for="file" class="form-label">Carregar Arquivo de Texto</label>
-                <input type="file" id="file" name="file" class="form-control">
-            </div>
-            <div class="mb-3">
-                <label for="text" class="form-label">Ou Cole Texto Aqui</label>
-                <textarea id="text" name="text" class="form-control" rows="5" placeholder="Cole ou insira seu texto aqui"></textarea>
+        <h1 class="mb-4">Ferramenta de Análise</h1>
+
+        <!-- Área de ingestão de texto ou visualização de conteúdo fixo -->
+        <div id="ingestContent" class="mb-4">
+            <form id="ingestForm">
+                <div class="mb-3">
+                    <label for="inputFile" class="form-label">Carregar Arquivo de Texto</label>
+                    <input type="file" id="inputFile" name="file" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for="inputText" class="form-label">Ou Cole Texto Aqui</label>
+                    <textarea id="inputText" name="text" class="form-control" rows="5"></textarea>
+                </div>
+                <button type="button" id="ingestBtn" class="btn btn-primary">Enviar Conteúdo</button>
+            </form>
+        </div>
+
+        <!-- Exibição de conteúdo fixo -->
+        <div id="fixedContent" class="mb-4 d-none">
+            <h4>Texto Analisado</h4>
+            <div id="analyzedText" class="border p-3 mb-3" style="white-space: pre-wrap;"></div>
+            <h4>Data e Hora da Análise</h4>
+            <div id="timestamp" class="border p-3 mb-3"></div>
+            <h4>Número de Parágrafos e Frases</h4>
+            <div id="counts" class="border p-3 mb-3"></div>
+            <button type="button" id="resetBtn" class="btn btn-warning">Enviar Outro Conteúdo</button>
+        </div>
+
+        <!-- Abas para as análises -->
+        <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button" role="tab" aria-controls="content" aria-selected="true">
+                    Representação Social
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="false">
+                    Análise de Sentimentos
+                </button>
+            </li>
+        </ul>
+
+        <!-- Conteúdo das abas -->
+        <div class="tab-content mt-3">
+            <!-- Aba de Representação Social -->
+            <div class="tab-pane fade show active" id="content" role="tabpanel" aria-labelledby="content-tab">
+                <form id="contentForm">
+                    <div class="mb-3">
+                        <label for="stopwords" class="form-label">Filtro de Stopwords</label>
+                        <select id="stopwords" name="stopwords" class="form-select">
+                            <option value="com">Com Stopwords</option>
+                            <option value="sem">Sem Stopwords</option>
+                            <option value="stopwords">Apenas Stopwords</option>
+                            <option value="todas">Todas</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="zone" class="form-label">Filtro de Zonas</label>
+                        <select id="zone" name="zone" class="form-select">
+                            <option value="Núcleo Central">Núcleo Central</option>
+                            <option value="Zona Periférica 1">Zona Periférica 1</option>
+                            <option value="Zona Periférica 2">Zona Periférica 2</option>
+                            <option value="Zona Periférica 3">Zona Periférica 3</option>
+                            <option value="todas">Todas as Zonas</option>
+                        </select>
+                    </div>
+                    <button type="button" id="contentBtn" class="btn btn-primary">Gerar Análise</button>
+                </form>
+                <div id="contentResults" class="mt-3"></div>
             </div>
 
-            <!-- Menu Filtro de Stopwords -->
-            <div class="mb-3">
-                <label for="stopwords" class="form-label">Filtro de Stopwords</label>
-                <select id="stopwords" name="stopwords" class="form-select">
-                    <option value="com">Com Stopwords</option>
-                    <option value="sem">Sem Stopwords</option>
-                    <option value="stopwords">Apenas Stopwords</option>
-                    <option value="todas">Todas</option>
-                </select>
+            <!-- Aba de Análise de Sentimentos -->
+            <div class="tab-pane fade" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
+                <form id="sentimentForm">
+                    <div class="mb-3">
+                        <label for="algorithm" class="form-label">Selecione o Algoritmo</label>
+                        <select id="algorithm" name="algorithm" class="form-select">
+                            <option value="naive_bayes" selected>Naive Bayes</option>
+                        </select>
+                    </div>
+                    <button type="button" id="sentimentBtn" class="btn btn-primary">Gerar Análise</button>
+                </form>
+                <div id="sentimentResults" class="mt-3"></div>
             </div>
-
-            <!-- Menu Filtro de Zonas -->
-            <div class="mb-3">
-                <label for="zone" class="form-label">Filtro de Zonas</label>
-                <select id="zone" name="zone" class="form-select">
-                    <option value="Núcleo Central">Núcleo Central</option>
-                    <option value="Zona Periférica 1">Zona Periférica 1</option>
-                    <option value="Zona Periférica 2">Zona Periférica 2</option>
-                    <option value="Zona Periférica 3">Zona Periférica 3</option>
-                    <option value="todas">Todas as Zonas</option>
-                </select>
-            </div>
-
-            <!-- Botão para Processar -->
-            <button type="button" id="processBtn" class="btn btn-primary">Gerar Análise</button>
-        </form>
-
-        <!-- Resultados -->
-        <div id="results" class="mt-5">
-            <h3>Resultados</h3>
-            <!-- A tabela será inserida aqui dinamicamente -->
         </div>
     </div>
 
-    <script>
-        $(document).ready(function () {
-            $('#processBtn').on('click', function () {
-                const formData = new FormData($('#uploadForm')[0]);
-                $.ajax({
-                    url: '/process',
-                    type: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function (data) {
-                        $('#results').html(data.html);
-                        $('.table').DataTable(); // Inicializar DataTables
-                    }
-                });
-            });
-        });
-    </script>
+    <script src="/static/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
