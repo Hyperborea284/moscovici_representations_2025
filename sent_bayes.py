@@ -160,24 +160,38 @@ class SentimentAnalyzer:
     def generate_html_content(self, timestamp: str, paragraphs: list, sentences: list, analyze_only=False) -> str:
         """
         Gera HTML dividido em partes fixas e dinâmicas.
-        Substituímos 'base_path = ./static/generated_images/' por './static/generated/' para coerência,
-        e ajustamos estilos dos <img> para ficarem proporcionais ao tamanho da tela.
+        
+        - 'paragraphs': lista de parágrafos do texto completo;
+        - 'sentences': lista de TODAS as sentenças do texto (caso seja necessário em outro lugar);
+        - 'analyze_only': se False, retorna o HTML fixo (texto analisado, timestamp, contagem).
+                          se True, retorna o HTML dinâmico (gráficos de sentimentos).
         """
+
         base_path = './static/generated/'
         html_paragraphs = []
         sentence_counter = 1
+
+        # Para evitar substituições repetidas ou fora de ordem,
+        # indexamos cada parágrafo individualmente.
         for paragraph in paragraphs:
+            # Obtemos apenas as sentenças pertencentes a ESTE parágrafo
+            local_sentences = self.count_sentences(paragraph)
+
             marked_paragraph = paragraph
-            for sentence in sentences:
-                if sentence in marked_paragraph:
+            for s in local_sentences:
+                if s in marked_paragraph:
+                    # Substitui apenas a primeira ocorrência, evitando duplicar índices se a frase se repetir
                     marked_paragraph = marked_paragraph.replace(
-                        sentence, f'{sentence} <span style="color:red;">[{sentence_counter}]</span>'
+                        s,
+                        f"{s} <span style='color:red;'>[{sentence_counter}]</span>",
+                        1
                     )
                     sentence_counter += 1
-            html_paragraphs.append(f'<p>{marked_paragraph}</p>')
 
+            html_paragraphs.append(f"<p>{marked_paragraph}</p>")
+
+        # Se não estiver apenas analisando (analyze_only=False), geramos o HTML fixo (Texto + Timestamp + Contagem)
         if not analyze_only:
-            # Geração da parte fixa (Texto Analisado, Timestamp, Contagem)
             html_fixed = f"""
                 <h1>Texto Analisado</h1>
                 <div id="analyzedText" style='border:1px solid black; padding:10px;'>
@@ -192,24 +206,25 @@ class SentimentAnalyzer:
             """
             return html_fixed
 
-        # Geração da parte dinâmica (Gráficos) com espaço e redimensionamento
+        # Caso contrário, geramos a parte dinâmica (gráficos de sentimentos, etc.)
         html_dynamic = f"""
             <h1>Gráficos Gerais</h1>
             <div style='border:1px solid black; padding:10px; text-align:center;'>
-                <img src='{base_path}pie_chart_{timestamp}.png' 
-                     alt='Gráfico de pizza de sentimentos' 
+                <img src='{base_path}pie_chart_{timestamp}.png'
+                     alt='Gráfico de pizza de sentimentos'
                      style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
-                <img src='{base_path}bar_chart_{timestamp}.png' 
-                     alt='Gráfico de barras de sentimentos' 
+                <img src='{base_path}bar_chart_{timestamp}.png'
+                     alt='Gráfico de barras de sentimentos'
                      style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
             </div>
         """
+
         emotions = list(self.emotions_funcs.keys())
         for emotion in emotions:
             html_dynamic += f"""
                 <h2>{emotion.capitalize()}</h2>
                 <div style='border:1px solid black; padding:10px; text-align:center;'>
-                    <img src='{base_path}{emotion}_score_{timestamp}.png' 
+                    <img src='{base_path}{emotion}_score_{timestamp}.png'
                          alt='Gráfico de linhas para {emotion}'
                          style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
                     <img src='{base_path}{emotion}_distribution_{timestamp}.png'
@@ -217,6 +232,7 @@ class SentimentAnalyzer:
                          style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
                 </div>
             """
+
         return html_dynamic
 
     def plot_individual_emotion_charts(self, scores_list: list, paragraph_end_indices: list, timestamp: str):
