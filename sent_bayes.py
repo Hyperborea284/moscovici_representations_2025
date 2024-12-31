@@ -158,9 +158,12 @@ class SentimentAnalyzer:
         return np.array([result.prob(emotion) for emotion in self.emotions_funcs.keys()])
 
     def generate_html_content(self, timestamp: str, paragraphs: list, sentences: list, analyze_only=False) -> str:
-        """Gera HTML dividido em partes fixas e dinâmicas."""
-        base_path = './static/generated_images/'
-    
+        """
+        Gera HTML dividido em partes fixas e dinâmicas.
+        Substituímos 'base_path = ./static/generated_images/' por './static/generated/' para coerência,
+        e ajustamos estilos dos <img> para ficarem proporcionais ao tamanho da tela.
+        """
+        base_path = './static/generated/'
         html_paragraphs = []
         sentence_counter = 1
         for paragraph in paragraphs:
@@ -172,60 +175,84 @@ class SentimentAnalyzer:
                     )
                     sentence_counter += 1
             html_paragraphs.append(f'<p>{marked_paragraph}</p>')
-    
+
         if not analyze_only:
             # Geração da parte fixa (Texto Analisado, Timestamp, Contagem)
             html_fixed = f"""
                 <h1>Texto Analisado</h1>
-                <div id="analyzedText" style='border:1px solid black; padding:10px;'>{''.join(html_paragraphs)}</div>
+                <div id="analyzedText" style='border:1px solid black; padding:10px;'>
+                    {''.join(html_paragraphs)}
+                </div>
                 <h1>Data e Hora da Análise</h1>
                 <div id="timestamp" style='border:1px solid black; padding:10px;'>{timestamp}</div>
                 <h1>Número de Parágrafos e Frases</h1>
-                <div id="counts" style='border:1px solid black; padding:10px;'>Parágrafos: {len(paragraphs)}, Frases: {len(sentences)}</div>
+                <div id="counts" style='border:1px solid black; padding:10px;'>
+                    Parágrafos: {len(paragraphs)}, Frases: {len(sentences)}
+                </div>
             """
             return html_fixed
-    
-        # Geração da parte dinâmica (Gráficos)
+
+        # Geração da parte dinâmica (Gráficos) com espaço e redimensionamento
         html_dynamic = f"""
             <h1>Gráficos Gerais</h1>
-            <div style='border:1px solid black; padding:10px;'>
-                <img src='{base_path}pie_chart_{timestamp}.png' alt='Gráfico de pizza de sentimentos'>
-                <img src='{base_path}bar_chart_{timestamp}.png' alt='Gráfico de barras de sentimentos'>
+            <div style='border:1px solid black; padding:10px; text-align:center;'>
+                <img src='{base_path}pie_chart_{timestamp}.png' 
+                     alt='Gráfico de pizza de sentimentos' 
+                     style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+                <img src='{base_path}bar_chart_{timestamp}.png' 
+                     alt='Gráfico de barras de sentimentos' 
+                     style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
             </div>
         """
         emotions = list(self.emotions_funcs.keys())
         for emotion in emotions:
             html_dynamic += f"""
                 <h2>{emotion.capitalize()}</h2>
-                <div style='border:1px solid black; padding:10px;'>
-                    <img src='{base_path}{emotion}_score_{timestamp}.png' alt='Gráfico de linhas para {emotion}'>
-                    <img src='{base_path}{emotion}_distribution_{timestamp}.png' alt='Distribuição Normal para {emotion}'>
+                <div style='border:1px solid black; padding:10px; text-align:center;'>
+                    <img src='{base_path}{emotion}_score_{timestamp}.png' 
+                         alt='Gráfico de linhas para {emotion}'
+                         style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+                    <img src='{base_path}{emotion}_distribution_{timestamp}.png'
+                         alt='Distribuição Normal para {emotion}'
+                         style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
                 </div>
             """
         return html_dynamic
 
-    def plot_individual_emotion_charts(self, scores_list, paragraph_end_indices, timestamp):
-        """Plota gráficos de linhas para cada emoção."""
+    def plot_individual_emotion_charts(self, scores_list: list, paragraph_end_indices: list, timestamp: str):
+        """
+        Plota gráficos de linhas individuais para cada sentimento e decide qual distribuição estatística é mais adequada.
+        Incluindo a geração das imagens de distribuição para evitar 404.
+        """
+        print("Plotando gráficos de linhas individuais para cada emoção...")
         emotions = list(self.emotions_funcs.keys())
-        paths = []
 
         for i, emotion in enumerate(emotions):
             fig, ax = plt.subplots(figsize=(10, 4))
             ax.plot([score[i] for score in scores_list], label=f'{emotion} pontuações')
             for end_idx in paragraph_end_indices:
-                ax.axvline(x=end_idx, color='grey', linestyle='--', label='Fim do Parágrafo' if end_idx == paragraph_end_indices[0] else "")
+                ax.axvline(x=end_idx, color='grey', linestyle='--',
+                           label='Fim do Parágrafo' if end_idx == paragraph_end_indices[0] else "")
             ax.legend(loc='upper right')
             ax.set_title(f'Evolução da Pontuação: {emotion}')
             ax.set_xlabel('Contagem de frases')
             ax.set_ylabel('Pontuações')
             plt.tight_layout()
 
-            filepath = self.generated_images_dir / f'{emotion}_score_{timestamp}.png'
-            plt.savefig(filepath)
-            paths.append(str(filepath))
+            # Salvando a imagem de pontuação para cada emoção
+            emotion_image_path = self.generated_images_dir / f'{emotion}_score_{timestamp}.png'
+            plt.savefig(emotion_image_path)
             plt.close()
 
-        return paths
+            # Analisando os dados e gerando o gráfico de distribuição
+            emotion_scores = [score[i] for score in scores_list]
+            nature = analyze_data(emotion_scores)  # Identificação da característica da distribuição
+            outliers, lower_bound, upper_bound = detect_outliers(emotion_scores)  # Detecção de outliers
+            distribution_image_path = self.generated_images_dir / f'{emotion}_distribution_{timestamp}.png'
+            plot_distribution(
+                emotion_scores, f'{emotion} ({nature})',
+                outliers, lower_bound, upper_bound, distribution_image_path
+            )
 
     def plot_pie_chart(self, scores_list, timestamp):
         """Plota um gráfico de pizza da distribuição de emoções."""
@@ -234,7 +261,7 @@ class SentimentAnalyzer:
         plt.figure(figsize=(8, 8))
         plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
         plt.title('Proporção de Cada Sentimento')
-    
+
         filepath = self.generated_images_dir / f'pie_chart_{timestamp}.png'
         plt.savefig(filepath)
         plt.close()
@@ -256,7 +283,7 @@ class SentimentAnalyzer:
         return str(filepath)
 
     def execute_analysis_text(self, text):
-        """Realiza a análise de sentimentos e retorna os gráficos gerados."""
+        """Realiza a análise de sentimentos e retorna também a contagem e timestamp para armazenarmos."""
         if not text:  # Verifica se o texto é None ou vazio
             raise ValueError("Nenhum texto fornecido para análise.")
 
@@ -266,14 +293,17 @@ class SentimentAnalyzer:
         paragraphs, sentences = self.process_text(text)
         scores_list, paragraph_end_indices = self.analyze_paragraphs(paragraphs)
 
-        score_paths = self.plot_individual_emotion_charts(scores_list, paragraph_end_indices, timestamp)
-        pie_chart_path = self.plot_pie_chart(scores_list, timestamp)
-        bar_chart_path = self.plot_bar_chart(scores_list, timestamp)
+        # Plota gráficos de linhas + distribuição
+        self.plot_individual_emotion_charts(scores_list, paragraph_end_indices, timestamp)
+        # Plota os gráficos de pizza e barras
+        self.plot_pie_chart(scores_list, timestamp)
+        self.plot_bar_chart(scores_list, timestamp)
 
         html_fixed = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=False)
         html_dynamic = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=True)
 
-        return html_fixed, html_dynamic
+        # Devolvemos: HTML fixo, HTML dinâmico, nº de parágrafos, nº de frases, e o timestamp
+        return html_fixed, html_dynamic, len(paragraphs), len(sentences), timestamp
 
     def generate_html_content_process(self, queue: Queue, timestamp: str, paragraphs: list, sentences: list):
         """Gera conteúdo HTML fixo e dinâmico em processos separados e adiciona ao Queue."""

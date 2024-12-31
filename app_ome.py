@@ -15,6 +15,9 @@ nltk.download('punkt')
 nltk.download('stopwords')
 
 app = Flask(__name__)
+
+# Observação: mantemos 'generated' pois a aplicação de Representação Social salva lá;
+# precisamos apenas garantir que o SentimentAnalyzer também aponte para 'generated'.
 UPLOAD_FOLDER = './static/generated'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -73,7 +76,7 @@ class RepresentacaoSocial:
         plt.close()
         return filepath
 
-# Inicializar SentimentAnalyzer
+# Inicializar SentimentAnalyzer usando a mesma pasta de upload do app
 sentiment_analyzer = SentimentAnalyzer(output_dir=UPLOAD_FOLDER)
 
 @app.route('/')
@@ -92,11 +95,23 @@ def ingest_content():
     else:
         shared_content["text"] = request.form['text']
 
+    # >>>>>>> Atribuição para evitar erro 400 em /process_sentiment <<<<<<<
+    shared_content["algorithm"] = "naive_bayes"
+
     # Gerar conteúdo processado
     try:
-        html_fixed, html_dynamic = sentiment_analyzer.execute_analysis_text(shared_content["text"])
+        # Ajuste para receber 5 retornos (html_fixed, html_dynamic, num_pars, num_sents, timestamp)
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+            shared_content["text"]
+        )
+
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
+        
+        # Salvamos em 'shared_content' para uso futuro (process_sentiment)
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Erro durante a ingestão de conteúdo: {e}")
@@ -128,9 +143,12 @@ def select_algorithm_and_generate():
         return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
 
     try:
-        html_fixed, html_dynamic = sentiment_analyzer.execute_analysis_text(text)
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(text)
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
         return jsonify({"status": "Análise concluída"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
