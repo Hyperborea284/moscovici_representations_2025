@@ -170,16 +170,19 @@ class SentimentAnalyzer:
         base_path = './static/generated/'
         html_paragraphs = []
         sentence_counter = 1
-
+        
+        # Conjunto para rastrear frases já indexadas
+        distributed_sentences = set()
+        
         # Para evitar substituições repetidas ou fora de ordem,
         # indexamos cada parágrafo individualmente.
         for paragraph in paragraphs:
             # Obtemos apenas as sentenças pertencentes a ESTE parágrafo
             local_sentences = self.count_sentences(paragraph)
-
+        
             marked_paragraph = paragraph
             for s in local_sentences:
-                if s in marked_paragraph:
+                if s in marked_paragraph and s not in distributed_sentences:
                     # Substitui apenas a primeira ocorrência, evitando duplicar índices se a frase se repetir
                     marked_paragraph = marked_paragraph.replace(
                         s,
@@ -187,7 +190,9 @@ class SentimentAnalyzer:
                         1
                     )
                     sentence_counter += 1
-
+                    # Adiciona a frase ao conjunto de frases já processadas
+                    distributed_sentences.add(s)
+        
             html_paragraphs.append(f"<p>{marked_paragraph}</p>")
 
         # Se não estiver apenas analisando (analyze_only=False), geramos o HTML fixo (Texto + Timestamp + Contagem)
@@ -196,12 +201,6 @@ class SentimentAnalyzer:
                 <h1>Texto Analisado</h1>
                 <div id="analyzedText" style='border:1px solid black; padding:10px;'>
                     {''.join(html_paragraphs)}
-                </div>
-                <h1>Data e Hora da Análise</h1>
-                <div id="timestamp" style='border:1px solid black; padding:10px;'>{timestamp}</div>
-                <h1>Número de Parágrafos e Frases</h1>
-                <div id="counts" style='border:1px solid black; padding:10px;'>
-                    Parágrafos: {len(paragraphs)}, Frases: {len(sentences)}
                 </div>
             """
             return html_fixed
