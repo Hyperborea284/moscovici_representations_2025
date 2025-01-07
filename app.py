@@ -1,26 +1,21 @@
 from flask import Flask, request, render_template, jsonify
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg')  # Backend para evitar problemas com threads
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
-import nltk
-from nltk.corpus import stopwords
 import time
+import sys
 
 from sent_bayes import SentimentAnalyzer
-# Importamos do novo script
 from representacao_social import process_representacao_social
-# >>>>>>> NOVO IMPORT PARA O MÓDULO DE RASPAGEM <<<<<<<
 from goose_scraper import scrape_links
 
-# >>>>>>> NOVO IMPORT PARA O MÓDULO DE TIMELINE <<<<<<<
-# (Script que foi adaptado para não ter mais chamadas ao Goose)
-from timeline_generator import create_timeline  # Nome sugerido para o script de timeline
+from timeline_generator import create_timeline
+from timeline_viewer import make_sure_timelinelib_can_be_imported, install_gettext_in_builtin_namespace, TimelineViewerFrame
 
-# Baixar dependências do NLTK
-nltk.download('punkt')
-nltk.download('stopwords')
+make_sure_timelinelib_can_be_imported()
+install_gettext_in_builtin_namespace()
 
 app = Flask(__name__)
 
@@ -39,7 +34,8 @@ shared_content = {
     "html_dynamic": None, 
     "algorithm": None,
     # Lista de links que falharam
-    "bad_links": []
+    "bad_links": [],
+    "timeline_file": None
 }
 
 # Inicializar SentimentAnalyzer usando a mesma pasta de upload do app
@@ -143,7 +139,8 @@ def reset_content():
         "html_fixed": None, 
         "html_dynamic": None, 
         "algorithm": None, 
-        "bad_links": []
+        "bad_links": [],
+        "timeline_file": None
     }
     return jsonify({"status": "success"})
 
@@ -229,22 +226,34 @@ def generate_timeline():
     sem qualquer referência ao Goose no script de timeline.
     """
     global shared_content
-    if not shared_content.get("text"):
-        return jsonify({"error": "No content provided"}), 400
+    text = request.form.get("text")
+    if not text:
+        return jsonify({"error": "Texto não fornecido"}), 400
 
-    # Transformamos o texto em lista de strings, se necessário
-    # (exemplo simplificado, segmentando por quebras de linha)
-    text_list = shared_content["text"].splitlines()
+    try:
+        timeline_file = create_timeline(text.splitlines())
+        shared_content["timeline_file"] = timeline_file
+        return jsonify({"status": "success", "timeline_file": timeline_file})
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
 
-    # Chama a função create_timeline do script adaptado (timeline_generator.py)
-    timeline_file = create_timeline(text_list)
+# >>>>>>> NOVA ROTA PARA VISUALIZAÇÃO DE TIMELINE <<<<<<<
+@app.route('/view_timeline', methods=['GET'])
+def view_timeline():
+    """
+    Rota para exibir a timeline gerada na interface wx.
+    """
+    global shared_content
+    timeline_file = shared_content.get("timeline_file")
     if not timeline_file:
-        return jsonify({"error": "Falha ao gerar timeline."}), 500
+        return jsonify({"error": "Nenhuma timeline gerada"}), 400
 
-    return jsonify({
-        "status": "success",
-        "timeline_file": timeline_file
-    })
+    try:
+        frame = TimelineViewerFrame(None, "Visualizador de Timeline", timeline_file)
+        html_output = frame.render_html()
+        return jsonify({"status": "success", "html": html_output})
+    except Exception as e:
+        return jsonify({"error": f"Erro ao visualizar timeline: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

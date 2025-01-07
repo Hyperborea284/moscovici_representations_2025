@@ -16,15 +16,15 @@ $(document).ready(function () {
         });
         message += '</ul><p>Por favor, escolha qual fonte deseja usar:</p>';
 
-        let popup = $(`
-            <div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%; 
+        let popup = $(
+            `<div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%; 
                  transform: translate(-50%, -50%); background: white; padding: 20px; 
                  border: 1px solid #ccc; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); 
                  z-index: 9999;">
                 <h5>Conflito de fontes de texto</h5>
                 ${message}
-            </div>
-        `);
+            </div>`
+        );
 
         options.forEach(opt => {
             let label = '';
@@ -300,15 +300,35 @@ $(document).ready(function () {
 
     // Botão de Geração de Timeline
     $('#timelineBtn').on('click', function () {
+        const textInput = $('#inputText').val().trim();
+        if (!textInput) {
+            alert("Nenhum texto fornecido para gerar a timeline.");
+            return;
+        }
+
         $.ajax({
             url: '/generate_timeline',
             type: 'POST',
+            data: { text: textInput },
             success: function (data) {
                 if (data.status === "success") {
-                    // Exibe o caminho do arquivo ou mensagem de confirmação
-                    $('#timelineResults').html("Timeline gerada com sucesso em: " + data.timeline_file);
+                    // Atualizar o container da aba Timeline com o HTML gerado
+                    $.ajax({
+                        url: '/view_timeline',
+                        type: 'GET',
+                        success: function (viewData) {
+                            if (viewData.status === "success") {
+                                $('#timelineResults').html(viewData.html); // Inserir o HTML no container
+                            } else {
+                                alert("Erro ao visualizar a timeline: " + viewData.error);
+                            }
+                        },
+                        error: function () {
+                            alert("Erro ao tentar visualizar a timeline. Verifique o servidor.");
+                        }
+                    });
                 } else {
-                    alert("Falha na geração da timeline.");
+                    alert("Falha na geração da timeline: " + data.error);
                 }
             },
             error: function () {
