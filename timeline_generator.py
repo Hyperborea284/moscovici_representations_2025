@@ -252,6 +252,9 @@ class TimelineValidator:
                     correction_prompt = f"""
                     O XML gerado contém o seguinte erro: {error_message}.
                     Por favor, corrija o XML seguindo as regras fornecidas anteriormente.
+                    Preserve ipsis literis, todos os conteúdos acerca dos eventos e eras apresentados,
+                    em situação nenhuma remova, omita, ou diminua estes conteúdos.
+                    Manipule apenas a estrutura do arquivo xml.
                     Aqui está o XML incorreto para referência:
                     {timeline_xml}
                     """
