@@ -12,10 +12,6 @@ from representacao_social import process_representacao_social
 from goose_scraper import scrape_links
 
 from timeline_generator import create_timeline
-from timeline_viewer import make_sure_timelinelib_can_be_imported, install_gettext_in_builtin_namespace, TimelineViewerFrame
-
-make_sure_timelinelib_can_be_imported()
-install_gettext_in_builtin_namespace()
 
 app = Flask(__name__)
 
@@ -254,6 +250,38 @@ def view_timeline():
         return jsonify({"status": "success", "html": html_output})
     except Exception as e:
         return jsonify({"error": f"Erro ao visualizar timeline: {str(e)}"}), 500
+
+# Rota para receber o DOM
+@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app'
+def receive_dom():
+    try:
+        print("API: Received a POST request")
+        # Recebe o conteúdo enviado em formato JSON
+        data = request.get_json()
+        print("API: JSON payload:", data)
+
+        if not data:
+            print("API: No JSON data received")
+            return jsonify({"error": "No JSON data received"}), 400
+
+        dom_content = data.get("dom", "")
+        page_url = data.get("url", "Unknown URL")
+
+        if not dom_content:
+            print("API: No DOM content provided")
+            return jsonify({"error": "No DOM content provided"}), 400
+
+        # Apresenta o URL e o DOM recebido
+        print(f"API: Received DOM from URL: {page_url}")
+        print("API: Received DOM length:", len(dom_content))
+        print("API: First 500 characters of DOM:")
+        print(dom_content[:500])
+
+        # Retorna confirmação
+        return jsonify({"status": "success", "message": "DOM received"}), 200
+    except Exception as e:
+        print("API: Exception occurred:", e)
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
