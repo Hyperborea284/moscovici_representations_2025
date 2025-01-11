@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_c4a26b798782513765f4ebd39b4f0de8 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_c4a26b798782513765f4ebd39b4f0de8" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_c4a26b798782513765f4ebd39b4f0de8 = L.map(
+                "map_c4a26b798782513765f4ebd39b4f0de8",
+                {
+                    center: [-15.0, -50.0],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 4,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_78f5fe17c39d3e343f077b703fc98f09 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_78f5fe17c39d3e343f077b703fc98f09.addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var marker_96f599058996cb206242b790db312f41 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_cecc7b2f356af0e56816aae52469d5f5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_96f599058996cb206242b790db312f41.setIcon(icon_cecc7b2f356af0e56816aae52469d5f5);
+        
+    
+        var popup_f6da78bf43ac9dd24c013e5467d8aa06 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_315f91993c7854067f0ad341c78b1ae9 = $(`<div id="html_315f91993c7854067f0ad341c78b1ae9" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_f6da78bf43ac9dd24c013e5467d8aa06.setContent(html_315f91993c7854067f0ad341c78b1ae9);
+            
+        
+
+        marker_96f599058996cb206242b790db312f41.bindPopup(popup_f6da78bf43ac9dd24c013e5467d8aa06)
+        ;
+
+        
+    
+    
+            marker_96f599058996cb206242b790db312f41.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_c210a52244c9b2719614cca51d0abfd9 = L.marker(
+                [-15.79899835, -47.860765675844334],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_e09eb1b8b4e7699e2c864c73cb03a714 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_c210a52244c9b2719614cca51d0abfd9.setIcon(icon_e09eb1b8b4e7699e2c864c73cb03a714);
+        
+    
+        var popup_7c9bb336e17ebd8454551d2e6dd3ae08 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_52cc269da72cfced991faccbc133ca9b = $(`<div id="html_52cc269da72cfced991faccbc133ca9b" style="width: 100.0%; height: 100.0%;">Entidade: Palácio do Planalto<br>Tipo: localização<br>Local Esperado: Brasília<br>Sentimento: 0.00</div>`)[0];
+                popup_7c9bb336e17ebd8454551d2e6dd3ae08.setContent(html_52cc269da72cfced991faccbc133ca9b);
+            
+        
+
+        marker_c210a52244c9b2719614cca51d0abfd9.bindPopup(popup_7c9bb336e17ebd8454551d2e6dd3ae08)
+        ;
+
+        
+    
+    
+            marker_c210a52244c9b2719614cca51d0abfd9.bindTooltip(
+                `<div>
+                     Palácio do Planalto - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_311d6e7047a185e2286fa0e9b41859b4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.setIcon(icon_311d6e7047a185e2286fa0e9b41859b4);
+        
+    
+        var popup_8a40ac149d77145f91057d95cec6da52 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_12c96a15c60a903770acd384f6fd2db7 = $(`<div id="html_12c96a15c60a903770acd384f6fd2db7" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_8a40ac149d77145f91057d95cec6da52.setContent(html_12c96a15c60a903770acd384f6fd2db7);
+            
+        
+
+        marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.bindPopup(popup_8a40ac149d77145f91057d95cec6da52)
+        ;
+
+        
+    
+    
+            marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4422bf73e8632ed666b45e7d143e52a8 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_de47b3dea86034eeda44ce0d9ce462d4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4422bf73e8632ed666b45e7d143e52a8.setIcon(icon_de47b3dea86034eeda44ce0d9ce462d4);
+        
+    
+        var popup_5ba10e24920ad42d922c27fd062ee565 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_caab2213a16ea3654f078cdc5849762f = $(`<div id="html_caab2213a16ea3654f078cdc5849762f" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_5ba10e24920ad42d922c27fd062ee565.setContent(html_caab2213a16ea3654f078cdc5849762f);
+            
+        
+
+        marker_4422bf73e8632ed666b45e7d143e52a8.bindPopup(popup_5ba10e24920ad42d922c27fd062ee565)
+        ;
+
+        
+    
+    
+            marker_4422bf73e8632ed666b45e7d143e52a8.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4db8a050783ad7f6a1ff71add83d5f67 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_07928aa069628c745c3f5b43b4a30496 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4db8a050783ad7f6a1ff71add83d5f67.setIcon(icon_07928aa069628c745c3f5b43b4a30496);
+        
+    
+        var popup_e14ccdce4df3b8ec9636253dcb40cc93 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_701b8de274a074d609f965550981f4e4 = $(`<div id="html_701b8de274a074d609f965550981f4e4" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_e14ccdce4df3b8ec9636253dcb40cc93.setContent(html_701b8de274a074d609f965550981f4e4);
+            
+        
+
+        marker_4db8a050783ad7f6a1ff71add83d5f67.bindPopup(popup_e14ccdce4df3b8ec9636253dcb40cc93)
+        ;
+
+        
+    
+    
+            marker_4db8a050783ad7f6a1ff71add83d5f67.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4919f0762d7d3da7be3e80cbd872e799 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_45f6f4297b53d97dc26c8182c776e5c2 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4919f0762d7d3da7be3e80cbd872e799.setIcon(icon_45f6f4297b53d97dc26c8182c776e5c2);
+        
+    
+        var popup_f609d5797407bf792ec8a2eb7ae455ca = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_1b7d83e67887377c59585e4f3faf2540 = $(`<div id="html_1b7d83e67887377c59585e4f3faf2540" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_f609d5797407bf792ec8a2eb7ae455ca.setContent(html_1b7d83e67887377c59585e4f3faf2540);
+            
+        
+
+        marker_4919f0762d7d3da7be3e80cbd872e799.bindPopup(popup_f609d5797407bf792ec8a2eb7ae455ca)
+        ;
+
+        
+    
+    
+            marker_4919f0762d7d3da7be3e80cbd872e799.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+</script>
+</html>
