@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<timeline>
+  <version>2.9.0 (385f17ad49c8 2023-09-01)</version>
+  <timetype>gregoriantime</timetype>
+  <categories>
+    <category>
+      <name>Política</name>
+      <color>255,0,0</color>
+      <progress_color>255,153,153</progress_color>
+      <done_color>255,153,153</done_color>
+      <font_color>0,0,0</font_color>
+    </category>
+    <category>
+      <name>Internacional</name>
+      <color>0,0,255</color>
+      <progress_color>153,153,255</progress_color>
+      <done_color>153,153,255</done_color>
+      <font_color>0,0,0</font_color>
+    </category>
+    <category>
+      <name>Incidente</name>
+      <color>255,165,0</color>
+      <progress_color>255,218,153</progress_color>
+      <done_color>255,218,153</done_color>
+      <font_color>0,0,0</font_color>
+    </category>
+    <category>
+      <name>Eleição</name>
+      <color>0,128,0</color>
+      <progress_color>153,255,153</progress_color>
+      <done_color>153,255,153</done_color>
+      <font_color>0,0,0</font_color>
+    </category>
+  </categories>
+  <events>
+    <event>
+      <start>2024-11-03 14:00:00</start>
+      <end>2024-11-03 16:00:00</end>
+      <text>O deputado republicano Mike Johnson foi reeleito como presidente da Câmara dos Representantes dos Estados Unidos com 218 votos.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Eleição</category>
+      <default_color>0,128,0</default_color>
+    </event>
+    <event>
+      <start>2024-11-03 16:30:00</start>
+      <end>2024-11-03 17:30:00</end>
+      <text>Deputados republicanos da ala extrema direita se reuniram em uma sala fechada para tentar reverter o resultado da votação.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Política</category>
+      <default_color>255,0,0</default_color>
+    </event>
+    <event>
+      <start>2024-11-03 17:45:00</start>
+      <end>2024-11-03 18:30:00</end>
+      <text>Dois deputados republicanos foram convencidos a alterar seus votos, garantindo a maioria necessária para a reeleição de Mike Johnson.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Eleição</category>
+      <default_color>0,128,0</default_color>
+    </event>
+    <event>
+      <start>2024-01-15 10:00:00</start>
+      <end>2024-01-15 12:00:00</end>
+      <text>Incidente sobre a incapacidade da polícia para prender ex-presidente coreano acusado de golpe.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Incidente</category>
+      <default_color>255,165,0</default_color>
+    </event>
+    <event>
+      <start>2024-05-20 09:00:00</start>
+      <end>2024-05-20 10:00:00</end>
+      <text>Espanhola de 22 anos morre após incidente enquanto dava banho em elefante em santuário na Tailândia.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Incidente</category>
+      <default_color>255,165,0</default_color>
+    </event>
+    <event>
+      <start>2024-11-03 19:00:00</start>
+      <end>2024-11-03 19:30:00</end>
+      <text>O presidente eleito Donald Trump parabeniza Mike Johnson pela reeleição e afirma que ele será “um grande presidente”.</text>
+      <progress>0</progress>
+      <fuzzy>False</fuzzy>
+      <fuzzy_start>False</fuzzy_start>
+      <fuzzy_end>False</fuzzy_end>
+      <locked>False</locked>
+      <ends_today>False</ends_today>
+      <category>Política</category>
+      <default_color>255,0,0</default_color>
+    </event>
+  </events>
+  <view>
+    <displayed_period>
+      <start>2024-05-15 10:05:09</start>
+      <end>2025-05-16 10:05:08</end>
+    </displayed_period>
+    <hidden_categories>
+    </hidden_categories>
+  </view>
+</timeline>
