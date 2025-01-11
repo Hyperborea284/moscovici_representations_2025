@@ -12,12 +12,12 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import RSLPStemmer
 from nltk.probability import FreqDist
-from base import raiva, tristeza, surpresa, medo, desgosto, alegria
+from modules.base import raiva, tristeza, surpresa, medo, desgosto, alegria
 import re
 from time import sleep
 from threading import Thread
 from queue import Queue
-from dist_normal import analyze_data, detect_outliers, plot_distribution
+from modules.dist_normal import analyze_data, detect_outliers, plot_distribution
 
 class SentimentAnalyzer:
     """

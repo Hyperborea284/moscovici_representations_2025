@@ -7,11 +7,10 @@ import os
 import time
 import sys
 
-from sent_bayes import SentimentAnalyzer
-from representacao_social import process_representacao_social
-from goose_scraper import scrape_links
-
-from timeline_generator import create_timeline
+from modules.sent_bayes import SentimentAnalyzer
+from modules.representacao_social import process_representacao_social
+from modules.goose_scraper import scrape_links
+from modules.timeline_generator import create_timeline
 
 app = Flask(__name__)
 
