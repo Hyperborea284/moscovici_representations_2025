@@ -1,9 +1,13 @@
 import os
 import re
 import xml.etree.ElementTree as ET
-from openai import OpenAI
-from dotenv import load_dotenv
 from datetime import datetime
+from dotenv import load_dotenv
+from openai import OpenAI
+
+###############################################
+# Conteúdo originalmente em timeline_generator.py
+###############################################
 
 # Carrega as variáveis do arquivo .env
 load_dotenv()
@@ -278,31 +282,160 @@ class TimelineValidator:
         print("\n--- Número máximo de tentativas atingido (5). Abortando... ---")
         return None
 
-def create_timeline(text_list):
+class TimelineGenerator:
     """
-    Recebe uma lista de strings (text_list) a serem analisadas e concatenadas
-    para montagem do prompt final, preservando todo o resto da lógica.
+    Classe que unifica a criação de arquivos .timeline, usando o TimelineValidator.
     """
-    validator = TimelineValidator(client, prompt_instructions)
-    validated_xml = validator.generate_timeline(text_list)
-    
-    if validated_xml is None:
-        print("Não foi possível gerar uma timeline válida.")
-        return None
+    def __init__(self):
+        # Instancia o validador com o mesmo cliente e prompt do GPT-4
+        self.validator = TimelineValidator(client, prompt_instructions)
 
-    # Gera um nome de arquivo baseado na data/hora
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def create_timeline(self, text_list):
+        """
+        Recebe uma lista de strings (text_list) a serem analisadas e concatenadas
+        para montagem do prompt final, preservando todo o resto da lógica.
+        """
+        validated_xml = self.validator.generate_timeline(text_list)
+        
+        if validated_xml is None:
+            print("Não foi possível gerar uma timeline válida.")
+            return None
 
-    # Verifica (e cria, se não existir) a pasta 'timelines_api_output'
-    output_folder = "timeline_api_output"
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+        # Gera um nome de arquivo baseado na data/hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    timeline_file = f"{output_folder}/{timestamp}.timeline"
+        # Verifica (e cria, se não existir) a pasta 'timeline_api_output'
+        output_folder = "static/generated/timeline_output"
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
 
-    # Salva com utf-8-sig
-    with open(timeline_file, 'w', encoding='utf-8-sig') as file:
-        file.write(validated_xml)
+        timeline_file = f"{output_folder}/{timestamp}.timeline"
 
-    print(f"\n--- Linha do tempo salva com sucesso em: {timeline_file} ---")
-    return timeline_file
+        # Salva com utf-8-sig
+        with open(timeline_file, 'w', encoding='utf-8-sig') as file:
+            file.write(validated_xml)
+
+        print(f"\n--- Linha do tempo salva com sucesso em: {timeline_file} ---")
+        return timeline_file
+
+
+###############################################
+# Conteúdo originalmente em timeline_javascript.py
+###############################################
+
+# Removemos as importações e elementos específicos do Flask
+# mas preservamos o parse_timeline_xml e parse_color ipsis litteris.
+
+def parse_color(color_str):
+    # Converte uma string de cor 'R,G,B' para o formato hexadecimal '#RRGGBB'
+    r, g, b = map(int, color_str.split(','))
+    return f'#{r:02x}{g:02x}{b:02x}'
+
+class TimelineParser:
+    """
+    Classe responsável por carregar e interpretar um arquivo .timeline (XML) 
+    de acordo com a lógica original do timeline_javascript.py.
+    """
+    def __init__(self):
+        pass
+
+    def parse_timeline_xml(self, file_path):
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+
+        # Captura minimalista de versão e tipo de tempo do XML,
+        # preservando todas as demais partes do código.
+        version_node = root.find('version')
+        timetype_node = root.find('timetype')
+        version = version_node.text if version_node is not None else "2.9.0"
+        timetype = timetype_node.text if timetype_node is not None else "gregoriantime"
+
+        # Parse categories
+        categories_elem = root.find('categories')
+        categories = {}
+        if categories_elem is not None:
+            for category in categories_elem:
+                name = category.find('name').text
+                color = parse_color(category.find('color').text)
+                progress_color = (parse_color(category.find('progress_color').text) 
+                                  if category.find('progress_color') is not None else None)
+                done_color = (parse_color(category.find('done_color').text) 
+                              if category.find('done_color') is not None else None)
+                font_color = (parse_color(category.find('font_color').text) 
+                              if category.find('font_color') is not None and category.find('font_color').text is not None 
+                              else None)
+
+                categories[name] = {
+                    'color': color,
+                    'progress_color': progress_color,
+                    'done_color': done_color,
+                    'font_color': font_color
+                }
+
+        # Parse eras
+        eras_elem = root.find('eras')
+        eras = []
+        if eras_elem is not None:
+            for era in eras_elem:
+                name = era.find('name').text
+                start = era.find('start').text
+                end = era.find('end').text
+                color = parse_color(era.find('color').text)
+                eras.append({
+                    'name': name,
+                    'start': start,
+                    'end': end,
+                    'color': color
+                })
+
+        # Parse events
+        events_elem = root.find('events')
+        events = []
+        if events_elem is not None:
+            for event in events_elem:
+                start = event.find('start').text
+                end = event.find('end').text
+                text = event.find('text').text
+                category = event.find('category').text if event.find('category') is not None else 'Uncategorized'
+                description = event.find('description').text if event.find('description') is not None else ''
+                default_color = (parse_color(event.find('default_color').text) 
+                                 if event.find('default_color') is not None 
+                                 else categories.get(category, {}).get('color', '#000000'))
+                milestone = (event.find('milestone').text.lower() == 'true' 
+                             if event.find('milestone') is not None else False)
+
+                events.append({
+                    'start': start,
+                    'end': end,
+                    'text': text,
+                    'category': category,
+                    'description': description,
+                    'color': default_color,
+                    'milestone': milestone
+                })
+
+        # Adiciona um campo de intervalo de tempo relativo (já existente)
+        for ev in events:
+            start_time = ev['start']
+            end_time = ev['end']
+            ev['duration'] = f"{start_time} to {end_time}"
+
+        # Parse view
+        view_elem = root.find('view')
+        view = {}
+        if view_elem is not None:
+            displayed_period = view_elem.find('displayed_period')
+            if displayed_period is not None:
+                view = {
+                    'start': displayed_period.find('start').text,
+                    'end': displayed_period.find('end').text
+                }
+
+        return {
+            'version': version,
+            'timetype': timetype,
+            'categories': categories,
+            'eras': eras,
+            'events': events,
+            'view': view
+        }

@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const timeline = document.getElementById("timeline");
+    const timeline = document.getElementById("timelineContainer"); // Atualizado
     const categoryBox = document.getElementById("category-box");
     const eventDescription = document.getElementById("event-description");
 
@@ -10,14 +10,14 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(response => response.json())
         .then(data => {
             if (!data.view || !data.view.start || !data.view.end) {
-                console.error("Invalid or missing 'view' data in timeline JSON.");
+                console.error("Dados 'view' inválidos ou ausentes no JSON da timeline.");
                 return;
             }
             drawTimeline(data);
             setupCategoryBox(data.categories);
         })
         .catch(error => {
-            console.error("Failed to fetch timeline data:", error);
+            console.error("Falha ao buscar os dados da timeline:", error);
         });
 
     /**
@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function () {
      */
     function drawTimeline(data) {
         // Permite rolagem se exceder dimensões
-        const container = d3.select("#timeline")
+        const container = d3.select("#timelineContainer") // Atualizado
             .style("overflow", "auto")
             .style("max-height", "600px");
 
@@ -127,10 +127,12 @@ document.addEventListener("DOMContentLoaded", function () {
             let level = 0;
             while (
                 occupiedLevels[level] &&
-                occupiedLevels[level].some(range => range.overlaps(
-                    startX, startX + finalWidth,
-                    yOffset, yOffset + rectHeight
-                ))
+                occupiedLevels[level].some(range => overlaps(range, {
+                    startX: startX,
+                    endX: startX + finalWidth,
+                    top: yOffset,
+                    bottom: yOffset + rectHeight
+                }))
             ) {
                 level++;
                 const direction = level % 2 === 0 ? -1 : 1;
@@ -141,7 +143,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Se sobrepõe, alarga o evento mais antigo
             occupiedLevels[level].forEach(existing => {
-                if (existing.overlaps(startX, startX + finalWidth, yOffset, yOffset + rectHeight)) {
+                if (overlaps(existing, {
+                    startX: startX,
+                    endX: startX + finalWidth,
+                    top: yOffset,
+                    bottom: yOffset + rectHeight
+                })) {
                     existing.rectRef.attr("height", parseFloat(existing.rectRef.attr("height")) + 5);
                 }
             });
@@ -170,8 +177,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 endX: startX + finalWidth,
                 top: yOffset,
                 bottom: yOffset + rectHeight,
-                rectRef: eventRect,
-                overlaps
+                rectRef: eventRect
+                // Removido 'overlaps' aqui, pois agora usamos a função global
             });
         });
 
@@ -186,38 +193,26 @@ document.addEventListener("DOMContentLoaded", function () {
             .attr("stroke", "#000")
             .attr("stroke-width", 2);
 
-        // **(RE) Adiciona a linha de referência horizontal com datas/tempos dinâmicos** 
-        // usando passo calculado, exibindo:
-        // - Seg 6, Ter 7 (etc.) se estivermos em escala diária,
-        // - "HH:MM" se estivermos em escala de hora,
-        // - "YYYY" se estivermos em escala anual, etc.
+        // Adiciona a linha de referência horizontal com datas/tempos dinâmicos
         addTimeAxis(svg, startDate, endDate);
 
-        // -----------------------------------------
-        // Eixo superior semanal (já existia)
-        // -----------------------------------------
+        // Eixo superior semanal
         addWeekAxis(svg, startDate, endDate);
-
-        // -----------------------------------------
-        // Sobrescreve ou complementa as linhas de grade,
-        // caso você deseje tê-las além dos rótulos no centro
-        // -----------------------------------------
-        // addGridLines(svg, startDate, endDate);
     }
 
     /**
-     * Verifica sobreposição horizontal e vertical.
+     * Verifica sobreposição horizontal e vertical entre dois ranges.
+     * @param {Object} range1 - Primeiro range com propriedades startX, endX, top, bottom.
+     * @param {Object} range2 - Segundo range com propriedades startX, endX, top, bottom.
+     * @returns {boolean} - Retorna true se houver sobreposição, false caso contrário.
      */
-    function overlaps(rangeStart, rangeEnd, checkTop, checkBottom) {
-        const hOverlap = this.startX < rangeEnd && this.endX > rangeStart;
-        const vOverlap = this.top < checkBottom && this.bottom > checkTop;
+    function overlaps(range1, range2) {
+        const hOverlap = range1.startX < range2.endX && range1.endX > range2.startX;
+        const vOverlap = range1.top < range2.bottom && range1.bottom > range2.top;
         return hOverlap && vOverlap;
     }
 
-    // ------------------------------------------------------------------------------
-    // (Re)Introduzimos as marcações na LINHA CENTRAL,
-    // definindo o passo e exibindo a data/hora apropriada. 
-    // ------------------------------------------------------------------------------
+    // Adiciona o eixo de tempo dinâmico
     function addTimeAxis(svg, startDate, endDate) {
         const stepMs = getDynamicStep(startDate, endDate);
         let current = new Date(startDate);
@@ -241,7 +236,6 @@ document.addEventListener("DOMContentLoaded", function () {
             // => coloca em negrito
             let fontWeight = "normal";
             if (stepMs >= 86400000 && stepMs < 2592000000) {
-                // Intervalo de 1 dia até 1 mês => exibe dias da semana
                 const dayIndex = current.getDay();
                 if (dayIndex === 6 || dayIndex === 0) {
                     fontWeight = "bold";
@@ -263,14 +257,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     /**
-     * Retorna string de data/hora dependendo do step.
-     * Exs:
-     *  - < 1 min => HH:MM:SS
-     *  - < 1 hora => HH:MM
-     *  - < 1 dia => exibir "Dia Mês HH:MM" (ou minimal)
-     *  - >= 1 dia e < 1 mês => "Seg 6, Ter 7..." c/ weekend em negrito
-     *  - >= 1 mês e < 1 ano => "6 jan"
-     *  - >= 1 ano => "yyyy"
+     * Formata o rótulo dependendo do passo de tempo.
      */
     function formatDynamicLabel(date, stepMs) {
         const dayOfWeek = date.toLocaleString("pt-BR", { weekday: "short" }); // ex: seg., ter., qua...
@@ -278,12 +265,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const monthShort = date.toLocaleString("pt-BR", { month: "short" });  // jan, fev, etc.
         const year = date.getFullYear();
 
-        // Horas, minutos, segundos
         const hours = String(date.getHours()).padStart(2, "0");
         const minutes = String(date.getMinutes()).padStart(2, "0");
         const seconds = String(date.getSeconds()).padStart(2, "0");
 
-        // Ajustes minimalistas
         if (stepMs < 60 * 1000) {
             // < 1 min => HH:MM:SS
             return `${hours}:${minutes}:${seconds}`;
@@ -292,11 +277,9 @@ document.addEventListener("DOMContentLoaded", function () {
             return `${hours}:${minutes}`;
         } else if (stepMs < 24 * 60 * 60 * 1000) {
             // < 1 dia => exibe "HH:MM, Dia Mês"
-            // (ou exiba somente "HH:MM" se quiser minimal)
             return `${hours}:${minutes}  ${dayNum} ${monthShort}`;
         } else if (stepMs < 30 * 24 * 60 * 60 * 1000) {
             // < ~1 mês => seg. 6, ter. 7, ...
-            // Sáb e Dom em negrito => mas isso controlamos lá em addTimeAxis
             return `${dayOfWeek} ${dayNum}`;
         } else if (stepMs < 365 * 24 * 60 * 60 * 1000) {
             // < 1 ano => 6 jan
@@ -306,9 +289,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return `${year}`;
     }
 
-    // ------------------------------------------------------------------------------
-    // Eixo superior semanal (já existente)
-    // ------------------------------------------------------------------------------
+    // Adiciona o eixo superior semanal
     function addWeekAxis(svg, startDate, endDate) {
         let current = new Date(startDate);
         let weekCount = 1;
@@ -356,9 +337,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // ------------------------------------------------------------------------------
-    // Exemplo de linhas de grade extras, se desejadas
-    // ------------------------------------------------------------------------------
+    // Adiciona linhas de grade extras, se desejado
     function addGridLines(svg, startDate, endDate) {
         const stepMs = getDynamicStep(startDate, endDate);
         let current = new Date(startDate);
@@ -378,7 +357,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     /**
-     * Passo dinâmico (já existente)
+     * Calcula o passo dinâmico baseado na diferença entre startDate e endDate.
      */
     function getDynamicStep(startDate, endDate) {
         const diffMs = endDate - startDate;
@@ -401,9 +380,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return 365 * 86400 * 1000; // ou 30 dias, de modo aproximado
     }
 
-    // ------------------------------------------------------------------------------
-    // Exibe/oculta categorias
-    // ------------------------------------------------------------------------------
+    // Configurações da caixa de categorias
     function setupCategoryBox(categories) {
         Object.entries(categories).forEach(([name, props]) => {
             const categoryItem = document.createElement("div");
@@ -420,17 +397,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // ------------------------------------------------------------------------------
     // Tooltip dos eventos (descrição)
-    // ------------------------------------------------------------------------------
     function showDescription(event, e) {
         eventDescription.style.display = "block";
         eventDescription.style.left = `${e.pageX + 10}px`;
         eventDescription.style.top = `${e.pageY + 10}px`;
-        eventDescription.textContent = event.description || "No description available";
+        eventDescription.textContent = event.description || "Nenhuma descrição disponível";
     }
+
     function hideDescription() {
         eventDescription.style.display = "none";
     }
 });
-    

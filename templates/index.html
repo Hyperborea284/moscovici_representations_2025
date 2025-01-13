@@ -5,10 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ephor - Análise de Conteúdo</title>
+    <!-- CSS do Bootstrap -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <!-- CSS do DataTables -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <!-- CSS específico para a Timeline -->
+    <link rel="stylesheet" href="/static/css/timeline.css">
+    <!-- Outros links de CSS, se houver -->
 </head>
 <body>
     <div class="container mt-5">
@@ -36,7 +39,6 @@
                     </li>
                 </ul>
 
-                <!-- Conteúdo das abas de ingestão -->
                 <div class="tab-content p-3 border border-top-0" id="ingestTabContent">
                     <!-- Aba: Texto via Arquivo -->
                     <div class="tab-pane fade show active" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
@@ -60,16 +62,13 @@
                             <label for="linksArea" class="form-label">Insira os links aqui (um por linha)</label>
                             <textarea id="linksArea" name="links" class="form-control" rows="5"></textarea>
                         </div>
-                        <!-- Campo para exibir links que falharam ou não retornaram conteúdo -->
                         <div id="linksErrorList" class="text-danger mt-3" style="display: none;"></div>
-                        <!-- Campo para exibir mensagem de aguarde -->
                         <div id="loadingMessage" class="text-primary mt-3" style="display: none;">
                             <p>Aguarde enquanto processamos os links...</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Botão de envio -->
                 <button type="button" id="ingestBtn" class="btn btn-primary mt-3">Enviar Conteúdo</button>
             </form>
         </div>
@@ -94,7 +93,7 @@
                     Representação Social
                 </button>
             </li>
-            <!-- Nova Aba para Geração de Timeline -->
+            <!-- Aba para Geração de Timeline -->
             <li class="nav-item">
                 <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
                     Geração de Timeline
@@ -102,7 +101,6 @@
             </li>
         </ul>
 
-        <!-- Conteúdo das abas -->
         <div class="tab-content mt-3">
             <!-- Aba de Análise de Sentimentos -->
             <div class="tab-pane fade show active" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
@@ -151,19 +149,26 @@
                 <div id="contentResults" class="mt-3"></div>
             </div>
 
-            <!-- Nova Aba de Geração de Timeline -->
+            <!-- Aba de Geração de Timeline -->
             <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
                 <form id="timelineForm">
                     <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
                 </form>
                 <div id="timelineResults" class="mt-3">
-                    <!-- O conteúdo da timeline gerada será inserido aqui dinamicamente -->
+                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Scripts JavaScript -->
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <!-- JavaScript específico da aplicação -->
     <script src="/static/js/app.js"></script>
+    <!-- Bootstrap JS Bundle (inclui Popper) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

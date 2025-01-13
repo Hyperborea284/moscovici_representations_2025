@@ -298,13 +298,10 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Geração de Timeline
+    // >>>>>>> BOTÃO DE GERAÇÃO DE TIMELINE (CORRIGIDO) <<<<<<<
     $('#timelineBtn').on('click', function () {
         const textInput = $('#inputText').val().trim();
-        if (!textInput) {
-            alert("Nenhum texto fornecido para gerar a timeline.");
-            return;
-        }
+        // Removida a verificação de texto vazio
 
         $.ajax({
             url: '/generate_timeline',
@@ -312,13 +309,15 @@ $(document).ready(function () {
             data: { text: textInput },
             success: function (data) {
                 if (data.status === "success") {
-                    // Atualizar o container da aba Timeline com o HTML gerado
+                    // Depois que gerar, chamamos /view_timeline
                     $.ajax({
                         url: '/view_timeline',
                         type: 'GET',
+                        dataType: 'json', // Garantir que jQuery interprete como JSON
                         success: function (viewData) {
                             if (viewData.status === "success") {
-                                $('#timelineResults').html(viewData.html); // Inserir o HTML no container
+                                // viewData.html é o conteúdo do template timeline.html
+                                $('#timelineResults').html(viewData.html);
                             } else {
                                 alert("Erro ao visualizar a timeline: " + viewData.error);
                             }

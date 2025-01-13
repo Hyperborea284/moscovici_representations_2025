@@ -1,8 +1,28 @@
-body {
-    font-family: Arial, sans-serif;
+/* timeline.css */
+
+/* Encapsulamento dentro do timelineContainer */
+#timelineContainer {
+    width: 100%;
+    overflow-x: scroll;
+    border: 1px solid #ccc;
+    padding: 10px;
+    box-sizing: border-box;
+    background-color: #f9f9f9;
+    font-family: Arial, sans-serif; /* Mover font-family para timelineContainer */
 }
 
-#timeline {
+/* Remoção da duplicação do ID timelineContainer dentro dele mesmo */
+/* #timelineContainer #timelineContainer {
+    width: 90%;
+    margin: auto;
+    position: relative;
+    background-color: #fff;
+    /* A rolagem e height adicional são definidas no app.js para permitir grande área */
+} */
+
+/* Adicionar uma classe específica para o conteúdo interno, se necessário */
+/* Exemplo: .timeline-inner-container */
+#timelineContainer .timeline-inner-container {
     width: 90%;
     margin: auto;
     position: relative;
@@ -10,7 +30,8 @@ body {
     /* A rolagem e height adicional são definidas no app.js para permitir grande área */
 }
 
-.era {
+/* Eras na timeline */
+#timelineContainer .era {
     fill-opacity: 0.3; /* Visual suave */
     stroke: #888;
     stroke-width: 1px;
@@ -18,21 +39,21 @@ body {
 }
 
 /* Eventos: retângulo + texto */
-.event rect {
+#timelineContainer .event rect {
     stroke-width: 1px; /* Borda fina */
     rx: 5px;
     ry: 5px;
     fill-opacity: 0.9;
 }
 
-.event text {
+#timelineContainer .event text {
     font-size: 12px;
     pointer-events: none;
     text-anchor: start;
 }
 
 /* Caixa de categorias */
-.category-box {
+#timelineContainer .category-box {
     position: absolute;
     bottom: 10px;
     left: 10px;
@@ -46,14 +67,14 @@ body {
     overflow-y: auto;
 }
 
-.category-item {
+#timelineContainer .category-item {
     margin-bottom: 5px;
     cursor: pointer;
     display: flex;
     align-items: center;
 }
 
-.category-color {
+#timelineContainer .category-color {
     display: inline-block;
     width: 12px;
     height: 12px;
@@ -62,12 +83,12 @@ body {
     border: 1px solid #000;
 }
 
-.category-item:hover {
+#timelineContainer .category-item:hover {
     background: rgba(200, 200, 200, 0.5);
 }
 
 /* Tooltip para descrição do evento */
-.event-description {
+#timelineContainer .event-description {
     display: none;
     position: absolute;
     background: rgba(255, 255, 255, 0.9);
@@ -82,38 +103,43 @@ body {
 }
 
 /* Linhas de grade */
-.grid-line {
+#timelineContainer .grid-line {
     stroke: #ccc;
     stroke-dasharray: 2,2;
 }
 
 /* Texto das linhas de grid */
-.grid-text {
+#timelineContainer .grid-text {
     font-size: 10px;
     fill: #000;
     text-anchor: middle;
 }
 
 /* Eixo principal */
-.x-axis {
+#timelineContainer .x-axis {
     font-size: 10px;
     fill: #000;
 }
 
 /* Datas centrais */
-.date-label {
+#timelineContainer .date-label {
     font-size: 10px;
     fill: #000;
     text-anchor: middle;
 }
 
 /* Eixo superior das semanas */
-.x-axis-top {
+#timelineContainer .x-axis-top {
     font-size: 10px;
     fill: #000;
 }
 
 /* Camada de eventos, isolada */
-.event-layer {
+#timelineContainer .event-layer {
     isolation: isolate;
+}
+
+/* Classe para esconder elementos */
+#timelineContainer .hidden {
+    display: none;
 }

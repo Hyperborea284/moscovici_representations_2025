@@ -10,12 +10,11 @@ import sys
 from modules.sent_bayes import SentimentAnalyzer
 from modules.representacao_social import process_representacao_social
 from modules.goose_scraper import scrape_links
-from modules.timeline_generator import create_timeline
+from modules.timeline_generator import TimelineGenerator, TimelineParser
 
 app = Flask(__name__)
 
-# Observação: mantemos 'generated' pois a aplicação de Representação Social salva lá;
-# precisamos apenas garantir que o SentimentAnalyzer também aponte para 'generated'.
+# Configuração da pasta de upload
 UPLOAD_FOLDER = './static/generated'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -50,8 +49,9 @@ def ingest_content():
         with open(filepath, 'r', encoding='utf-8') as f:
             shared_content["text"] = f.read()
     else:
-        shared_content["text"] = request.form['text']
-
+        # Use 'get' com valor padrão vazio para evitar KeyError
+        shared_content["text"] = request.form.get('text', '')
+    
     # >>>>>>> Atribuição para evitar erro 400 em /process_sentiment <<<<<<<
     shared_content["algorithm"] = "naive_bayes"
     shared_content["bad_links"] = []  # Zerar a lista de links ruins caso venha de arquivo/texto
@@ -62,11 +62,8 @@ def ingest_content():
         html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
             shared_content["text"]
         )
-
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
-        
-        # Salvamos em 'shared_content' para uso futuro (process_sentiment)
         shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
@@ -105,7 +102,6 @@ def ingest_links():
         html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
             shared_content["text"]
         )
-
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
         shared_content["timestamp"] = analysis_ts
@@ -221,37 +217,65 @@ def generate_timeline():
     sem qualquer referência ao Goose no script de timeline.
     """
     global shared_content
-    text = request.form.get("text")
+
+    # Pega o que vier do front-end
+    text = request.form.get("text", "")
+    
+    # Se vier vazio, tenta usar o que já está armazenado em shared_content
     if not text:
+        text = shared_content.get("text", "")
+    
+    if not text.strip():
         return jsonify({"error": "Texto não fornecido"}), 400
 
     try:
-        timeline_file = create_timeline(text.splitlines())
+        timeline_file = TimelineGenerator().create_timeline(text.splitlines())
         shared_content["timeline_file"] = timeline_file
         return jsonify({"status": "success", "timeline_file": timeline_file})
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
 
-# >>>>>>> NOVA ROTA PARA VISUALIZAÇÃO DE TIMELINE <<<<<<<
+# >>>>>>> ROTA PARA VISUALIZAÇÃO DE TIMELINE (ALTERADA) <<<<<<<
 @app.route('/view_timeline', methods=['GET'])
 def view_timeline():
     """
-    Rota para exibir a timeline gerada na interface wx.
+    Rota para exibir a timeline gerada, agora retornando 'timeline.html' via JSON.
     """
     global shared_content
     timeline_file = shared_content.get("timeline_file")
     if not timeline_file:
         return jsonify({"error": "Nenhuma timeline gerada"}), 400
 
-    try:
-        frame = TimelineViewerFrame(None, "Visualizador de Timeline", timeline_file)
-        html_output = frame.render_html()
-        return jsonify({"status": "success", "html": html_output})
-    except Exception as e:
-        return jsonify({"error": f"Erro ao visualizar timeline: {str(e)}"}), 500
+    # Verificar se o arquivo .timeline existe fisicamente
+    if not os.path.isfile(timeline_file):
+        return jsonify({"error": f"Arquivo não encontrado: {timeline_file}"}), 404
 
-# Rota para receber o DOM
-@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app'
+    # Renderiza o template timeline.html
+    html_str = render_template('timeline.html')
+
+    # Devolve o HTML dentro de um objeto JSON
+    return jsonify({"status": "success", "html": html_str})
+
+@app.route('/timeline_data')
+def timeline_data():
+    """
+    Rota que parseia o arquivo .timeline armazenado em shared_content
+    e retorna os dados em JSON para o D3 desenhar.
+    """
+    global shared_content
+    timeline_file = shared_content.get("timeline_file")
+    if not timeline_file:
+        return jsonify({"error": "Nenhuma timeline gerada"}), 400
+
+    parser = TimelineParser()
+    try:
+        data = parser.parse_timeline_xml(timeline_file)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
+
+# Rota para receber o DOM (Parece ser usada para debug; se não for necessária, pode ser removida)
+@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário
 def receive_dom():
     try:
         print("API: Received a POST request")
