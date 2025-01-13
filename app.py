@@ -213,8 +213,7 @@ def process_sentiment():
 @app.route('/generate_timeline', methods=['POST'])
 def generate_timeline():
     """
-    Rota para gerar a timeline a partir do conteúdo de texto já ingerido,
-    sem qualquer referência ao Goose no script de timeline.
+    Rota para gerar a timeline a partir do conteúdo de texto já ingerido.
     """
     global shared_content
 
@@ -241,31 +240,30 @@ def view_timeline():
     """
     Rota para exibir a timeline gerada, agora retornando 'timeline.html' via JSON.
     """
-    global shared_content
-    timeline_file = shared_content.get("timeline_file")
-    if not timeline_file:
-        return jsonify({"error": "Nenhuma timeline gerada"}), 400
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"status": "error", "message": "Nome do arquivo não fornecido"}), 400
 
-    # Verificar se o arquivo .timeline existe fisicamente
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
     if not os.path.isfile(timeline_file):
-        return jsonify({"error": f"Arquivo não encontrado: {timeline_file}"}), 404
+        return jsonify({"status": "error", "message": f"Arquivo não encontrado: {timeline_file}"}), 404
 
     # Renderiza o template timeline.html
     html_str = render_template('timeline.html')
-
-    # Devolve o HTML dentro de um objeto JSON
-    return jsonify({"status": "success", "html": html_str})
+    return jsonify({"status": "success", "html": html_str, "filename": filename})
 
 @app.route('/timeline_data')
 def timeline_data():
     """
-    Rota que parseia o arquivo .timeline armazenado em shared_content
-    e retorna os dados em JSON para o D3 desenhar.
+    Rota que parseia o arquivo .timeline e retorna os dados em JSON para o D3 desenhar.
     """
-    global shared_content
-    timeline_file = shared_content.get("timeline_file")
-    if not timeline_file:
-        return jsonify({"error": "Nenhuma timeline gerada"}), 400
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"error": "Nome do arquivo não fornecido"}), 400
+
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
+    if not os.path.isfile(timeline_file):
+        return jsonify({"error": f"Arquivo não encontrado: {timeline_file}"}), 404
 
     parser = TimelineParser()
     try:
@@ -273,6 +271,15 @@ def timeline_data():
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
+
+@app.route('/list_timelines')
+def list_timelines():
+    timeline_dir = "static/generated/timeline_output"
+    try:
+        timelines = [f for f in os.listdir(timeline_dir) if f.endswith('.timeline')]
+        return jsonify({"status": "success", "timelines": timelines})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # Rota para receber o DOM (Parece ser usada para debug; se não for necessária, pode ser removida)
 @app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário

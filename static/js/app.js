@@ -6,6 +6,78 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
+    // Função para carregar a lista de timelines disponíveis
+    function loadTimelineList() {
+        $.ajax({
+            url: '/list_timelines', // Rota para listar os arquivos de timeline
+            type: 'GET',
+            success: function (data) {
+                const timelineFiles = $('#timelineFiles');
+                timelineFiles.empty(); // Limpa a lista atual
+                if (data.timelines && data.timelines.length > 0) {
+                    data.timelines.forEach(timeline => {
+                        const listItem = $(`<li class="list-group-item">${timeline}</li>`);
+                        listItem.on('click', function () {
+                            loadTimeline(timeline); // Carrega a timeline selecionada
+                        });
+                        timelineFiles.append(listItem);
+                    });
+                } else {
+                    timelineFiles.append('<li class="list-group-item">Nenhuma timeline disponível.</li>');
+                }
+            },
+            error: function () {
+                alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Carrega a lista de timelines ao abrir a aba
+    $('#timeline-tab').on('click', function () {
+        loadTimelineList();
+    });
+
+    // Função para carregar uma timeline específica
+    function loadTimeline(filename) {
+        $.ajax({
+            url: `/view_timeline?file=${filename}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                if (data.status === "success") {
+                    $('#timelineResults').html(data.html); // Exibe a timeline
+                    // Chama a função para carregar os dados da timeline
+                    fetchTimelineData(filename);
+                } else {
+                    alert("Erro ao carregar a timeline: " + data.error);
+                }
+            },
+            error: function () {
+                alert("Erro ao carregar a timeline. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Função para buscar os dados da timeline
+    function fetchTimelineData(filename) {
+        $.ajax({
+            url: `/timeline_data?file=${filename}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                if (data) {
+                    drawTimeline(data); // Desenha a timeline com os dados recebidos
+                } else {
+                    alert("Erro ao carregar os dados da timeline.");
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("Erro ao buscar os dados da timeline:", error);
+                alert("Erro ao buscar os dados da timeline. Verifique o servidor.");
+            }
+        });
+    }
+
     // Função para mostrar popup de decisão (adaptada para três fontes)
     function showSourceConflictPopup(options, onSelect) {
         let message = '<p>Detectamos que você preencheu mais de uma fonte de texto:</p><ul>';
@@ -298,10 +370,9 @@ $(document).ready(function () {
         });
     });
 
-    // >>>>>>> BOTÃO DE GERAÇÃO DE TIMELINE (CORRIGIDO) <<<<<<<
+    // Botão de Geração de Timeline
     $('#timelineBtn').on('click', function () {
         const textInput = $('#inputText').val().trim();
-        // Removida a verificação de texto vazio
 
         $.ajax({
             url: '/generate_timeline',
@@ -309,23 +380,10 @@ $(document).ready(function () {
             data: { text: textInput },
             success: function (data) {
                 if (data.status === "success") {
-                    // Depois que gerar, chamamos /view_timeline
-                    $.ajax({
-                        url: '/view_timeline',
-                        type: 'GET',
-                        dataType: 'json', // Garantir que jQuery interprete como JSON
-                        success: function (viewData) {
-                            if (viewData.status === "success") {
-                                // viewData.html é o conteúdo do template timeline.html
-                                $('#timelineResults').html(viewData.html);
-                            } else {
-                                alert("Erro ao visualizar a timeline: " + viewData.error);
-                            }
-                        },
-                        error: function () {
-                            alert("Erro ao tentar visualizar a timeline. Verifique o servidor.");
-                        }
-                    });
+                    // Carrega a timeline gerada
+                    loadTimeline(data.timeline_file);
+                    // Atualiza a lista de timelines
+                    loadTimelineList();
                 } else {
                     alert("Falha na geração da timeline: " + data.error);
                 }
