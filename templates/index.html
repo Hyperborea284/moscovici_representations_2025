@@ -86,7 +86,17 @@
         <!-- Abas para as análises e para a timeline -->
         <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link active" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="true">
+                <button class="nav-link active" id="entities-tab" data-bs-toggle="tab" data-bs-target="#entities" type="button" role="tab" aria-controls="entities" aria-selected="true">
+                    Entidades e Localidades
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
+                    Geração de Timeline
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="false">
                     Análise de Sentimentos
                 </button>
             </li>
@@ -95,17 +105,35 @@
                     Representação Social
                 </button>
             </li>
-            <!-- Aba para Geração de Timeline -->
-            <li class="nav-item">
-                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
-                    Geração de Timeline
-                </button>
-            </li>
         </ul>
 
         <div class="tab-content mt-3">
+            <!-- Aba de Entidades e Localidades -->
+            <div class="tab-pane fade show active" id="entities" role="tabpanel" aria-labelledby="entities-tab">
+                <div id="entitiesResults" class="mt-3">
+                    <!-- O conteúdo de entidades e localidades será inserido aqui via AJAX -->
+                </div>
+            </div>
+
+            <!-- Aba de Geração de Timeline -->
+            <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
+                <form id="timelineForm">
+                    <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
+                </form>
+                <div id="timelineResults" class="mt-3">
+                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
+                </div>
+                <!-- Lista de timelines disponíveis -->
+                <div id="timelineList" class="mt-3">
+                    <h4>Timelines Disponíveis</h4>
+                    <ul id="timelineFiles" class="list-group">
+                        <!-- As timelines serão carregadas aqui via JavaScript -->
+                    </ul>
+                </div>
+            </div>
+
             <!-- Aba de Análise de Sentimentos -->
-            <div class="tab-pane fade show active" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
+            <div class="tab-pane fade" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
                 <form id="sentimentForm">
                     <div class="mb-3">
                         <label for="algorithm" class="form-label">Selecione o Algoritmo</label>
@@ -149,23 +177,6 @@
                     <button type="button" id="contentBtn" class="btn btn-primary">Gerar Análise</button>
                 </form>
                 <div id="contentResults" class="mt-3"></div>
-            </div>
-
-            <!-- Aba de Geração de Timeline -->
-            <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
-                <form id="timelineForm">
-                    <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
-                </form>
-                <div id="timelineResults" class="mt-3">
-                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
-                </div>
-                <!-- Lista de timelines disponíveis -->
-                <div id="timelineList" class="mt-3">
-                    <h4>Timelines Disponíveis</h4>
-                    <ul id="timelineFiles" class="list-group">
-                        <!-- As timelines serão carregadas aqui via JavaScript -->
-                    </ul>
-                </div>
             </div>
         </div>
     </div>

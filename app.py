@@ -6,59 +6,89 @@ import matplotlib.pyplot as plt
 import os
 import time
 import sys
+from dotenv import load_dotenv
 
 from modules.sent_bayes import SentimentAnalyzer
 from modules.representacao_social import process_representacao_social
 from modules.goose_scraper import scrape_links
 from modules.timeline_generator import TimelineGenerator, TimelineParser
+from modules.entity_finder import EntityClassifier, process_text  # Importar funções de entity_finder
 
+# Carregar variáveis de ambiente
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
+# Inicializar o Flask
 app = Flask(__name__)
 
 # Configuração da pasta de upload
 UPLOAD_FOLDER = './static/generated'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Garantir que o diretório de saída exista
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Inicializar o EntityClassifier com a chave da OpenAI
+entity_classifier = EntityClassifier(openai_api_key)
 
 # Variável global para armazenar conteúdo compartilhado
 shared_content = {
-    "text": None, 
-    "html_fixed": None, 
-    "html_dynamic": None, 
+    "text": None,
+    "html_fixed": None,
+    "html_dynamic": None,
     "algorithm": None,
-    # Lista de links que falharam
     "bad_links": [],
-    "timeline_file": None
+    "timeline_file": None,
+    "entities": None  # Adicionar campo para armazenar entidades
 }
 
-# Inicializar SentimentAnalyzer usando a mesma pasta de upload do app
+# Inicializar SentimentAnalyzer
 sentiment_analyzer = SentimentAnalyzer(output_dir=UPLOAD_FOLDER)
 
 @app.route('/')
 def index():
     return render_template('index.html', shared_content=shared_content)
 
+# >>>>>>> ROTAS DA INGESTÃO DE CONTEÚDOS <<<<<<<
 @app.route('/ingest_content', methods=['POST'])
 def ingest_content():
     global shared_content
     uploaded_file = request.files.get('file')
+    text_input = request.form.get('text', '').strip()
+    links_input = request.form.get('links', '').strip()
+
+    sources_used = []
+    if uploaded_file and uploaded_file.filename:
+        sources_used.append('file')
+    if text_input:
+        sources_used.append('text')
+    if links_input:
+        sources_used.append('links')
+
+    if len(sources_used) > 1:
+        return jsonify({"status": "conflict", "sources": sources_used})
+
     if uploaded_file and uploaded_file.filename:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
         uploaded_file.save(filepath)
         with open(filepath, 'r', encoding='utf-8') as f:
             shared_content["text"] = f.read()
-    else:
-        # Use 'get' com valor padrão vazio para evitar KeyError
-        shared_content["text"] = request.form.get('text', '')
-    
-    # >>>>>>> Atribuição para evitar erro 400 em /process_sentiment <<<<<<<
+    elif text_input:
+        shared_content["text"] = text_input
+    elif links_input:
+        links_list = [l.strip() for l in links_input.splitlines() if l.strip()]
+        if links_list:
+            try:
+                combined_text, bad_links = scrape_links(links_list)
+                shared_content["text"] = combined_text
+                shared_content["bad_links"] = bad_links
+            except Exception as e:
+                return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
+
     shared_content["algorithm"] = "naive_bayes"
     shared_content["bad_links"] = []  # Zerar a lista de links ruins caso venha de arquivo/texto
 
-    # Gerar conteúdo processado
     try:
-        # Ajuste para receber 5 retornos (html_fixed, html_dynamic, num_pars, num_sents, timestamp)
         html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
             shared_content["text"]
         )
@@ -67,12 +97,14 @@ def ingest_content():
         shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
+        # Processar texto para identificar entidades
+        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
+
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Erro durante a ingestão de conteúdo: {e}")
         return jsonify({"error": "Erro ao processar o conteúdo"}), 500
 
-# >>>>>>> NOVA ROTA PARA INGESTÃO DE TEXTO A PARTIR DE LINKS <<<<<<<
 @app.route('/ingest_links', methods=['POST'])
 def ingest_links():
     global shared_content
@@ -135,6 +167,33 @@ def reset_content():
     }
     return jsonify({"status": "success"})
 
+# >>>>>>> ROTAS DA ANÁLISE DE SENTIMENTOS <<<<<<<
+@app.route('/process_sentiment', methods=['POST'])
+def process_sentiment():
+    """Processa a análise de sentimentos e retorna o conteúdo dinâmico gerado."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "No content provided"}), 400
+    if not shared_content.get("algorithm"):
+        return jsonify({"error": "No algorithm selected"}), 400
+
+    try:
+        # Verifica se os conteúdos fixo e dinâmico estão disponíveis
+        if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
+            raise ValueError("HTML content not generated yet.")
+
+        return jsonify({
+            "html_fixed": {
+                "analyzedText": shared_content["html_fixed"],
+                "timestamp": shared_content.get("timestamp", ""),
+                "counts": shared_content.get("counts", ""),
+            },
+            "html_dynamic": shared_content["html_dynamic"]
+        })
+    except Exception as e:
+        app.logger.error(f"Error processing sentiment analysis: {e}")
+        return jsonify({"error": f"Processing error: {e}"}), 500
+
 @app.route('/select_algorithm_and_generate', methods=['POST'])
 def select_algorithm_and_generate():
     """Seleciona o algoritmo e realiza a análise de sentimentos."""
@@ -165,6 +224,7 @@ def select_algorithm_and_generate():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+# >>>>>>> ROTAS DAS REPRESENTAÇÕES SOCIAIS <<<<<<<
 @app.route('/process', methods=['POST'])
 def process():
     """
@@ -183,33 +243,15 @@ def process():
         app.config['UPLOAD_FOLDER']
     )
 
-@app.route('/process_sentiment', methods=['POST'])
-def process_sentiment():
-    """Processa a análise de sentimentos e retorna o conteúdo dinâmico gerado."""
-    global shared_content
-    if not shared_content.get("text"):
-        return jsonify({"error": "No content provided"}), 400
-    if not shared_content.get("algorithm"):
-        return jsonify({"error": "No algorithm selected"}), 400
+# >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
+@app.route('/entities_and_locations')
+def entities_and_locations():
+    if not shared_content.get("entities"):
+        return jsonify({"error": "Nenhuma entidade encontrada"}), 400
 
-    try:
-        # Verifica se os conteúdos fixo e dinâmico estão disponíveis
-        if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
-            raise ValueError("HTML content not generated yet.")
+    return render_template('entities_and_locations.html', entities=shared_content["entities"])
 
-        return jsonify({
-            "html_fixed": {
-                "analyzedText": shared_content["html_fixed"],
-                "timestamp": shared_content.get("timestamp", ""),
-                "counts": shared_content.get("counts", ""),
-            },
-            "html_dynamic": shared_content["html_dynamic"]
-        })
-    except Exception as e:
-        app.logger.error(f"Error processing sentiment analysis: {e}")
-        return jsonify({"error": f"Processing error: {e}"}), 500
-
-# >>>>>>> NOVA ROTA PARA GERAÇÃO DE TIMELINE <<<<<<<
+# >>>>>>> ROTAS DA TIMELINE <<<<<<<
 @app.route('/generate_timeline', methods=['POST'])
 def generate_timeline():
     """
@@ -234,7 +276,6 @@ def generate_timeline():
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
 
-# >>>>>>> ROTA PARA VISUALIZAÇÃO DE TIMELINE (ALTERADA) <<<<<<<
 @app.route('/view_timeline', methods=['GET'])
 def view_timeline():
     """
@@ -251,6 +292,15 @@ def view_timeline():
     # Renderiza o template timeline.html
     html_str = render_template('timeline.html')
     return jsonify({"status": "success", "html": html_str, "filename": filename})
+
+@app.route('/list_timelines')
+def list_timelines():
+    timeline_dir = "static/generated/timeline_output"
+    try:
+        timelines = [f for f in os.listdir(timeline_dir) if f.endswith('.timeline')]
+        return jsonify({"status": "success", "timelines": timelines})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/timeline_data')
 def timeline_data():
@@ -272,16 +322,7 @@ def timeline_data():
     except Exception as e:
         return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
 
-@app.route('/list_timelines')
-def list_timelines():
-    timeline_dir = "static/generated/timeline_output"
-    try:
-        timelines = [f for f in os.listdir(timeline_dir) if f.endswith('.timeline')]
-        return jsonify({"status": "success", "timelines": timelines})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# Rota para receber o DOM (Parece ser usada para debug; se não for necessária, pode ser removida)
+# >>>>>>> ROTA DO DOM <<<<<<<
 @app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário
 def receive_dom():
     try:
@@ -313,5 +354,6 @@ def receive_dom():
         print("API: Exception occurred:", e)
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    print(">>> Iniciando aplicação Flask em modo debug.")
     app.run(debug=True)

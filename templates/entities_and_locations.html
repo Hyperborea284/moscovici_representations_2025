@@ -1,0 +1,83 @@
+<div class="container">
+    <h1>Entidades e Localidades</h1>
+
+    <!-- Tópicos Principais -->
+    <div class="coluna">
+        <h2>Tópicos Principais:</h2>
+        <ul>
+            {% for topico in entities.topicos %}
+            <li>{{ topico }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Resumo -->
+    <div class="coluna">
+        <h2>Resumo:</h2>
+        <p>{{ entities.resumo }}</p>
+    </div>
+
+    <!-- Pessoas e Organizações -->
+    <div class="coluna">
+        <h2>Pessoas e Organizações:</h2>
+        <ul>
+            {% for pessoa in entities.pessoas %}
+                <li class="entidade">
+                    <strong>{{ pessoa.entidade }}</strong>
+                    <span class="emoji">
+                        {% if pessoa.sentimento > 0.05 %}
+                            😊
+                        {% elif pessoa.sentimento < -0.05 %}
+                            😠
+                        {% else %}
+                            😐
+                        {% endif %}
+                    </span>
+                    {% if pessoa.imagem %}
+                        <img 
+                            src="{{ pessoa.imagem }}" 
+                            alt="{{ pessoa.entidade }}" 
+                            class="imagem-miniatura"
+                        >
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Localizações -->
+    <div class="coluna">
+        <h2>Localizações:</h2>
+        <ul>
+            {% for loc in entities.localizacoes %}
+                <li class="entidade">
+                    <strong>{{ loc.entidade }}</strong>
+                    <span class="emoji">
+                        {% if loc.sentimento > 0.05 %}
+                            😊
+                        {% elif loc.sentimento < -0.05 %}
+                            😠
+                        {% else %}
+                            😐
+                        {% endif %}
+                    </span>
+                    {% if loc.imagem %}
+                        <img 
+                            src="{{ loc.imagem }}" 
+                            alt="{{ loc.entidade }}" 
+                            class="imagem-miniatura"
+                        >
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Mapa de Localizações -->
+    <div class="coluna">
+        <h2>Mapa de Localizações:</h2>
+        <div class="mapa-container">
+            <iframe src="/mapa" width="100%" height="100%"></iframe>
+        </div>
+    </div>
+</div>

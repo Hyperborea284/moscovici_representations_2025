@@ -1,0 +1,1529 @@
+Partindo destes codigos, esta aplicaçao web a qual possui três abas, cada uma associada à um 
+mecanismo de análise de conteúdos (análise de sentimentos, Representações Sociais, Geração de timeline), 
+sendo estes ingeridos por três mecanismos (Texto copiado, texto raspado de links e arquivo txt); 
+estas funcionalidades não devem ser removidas, alteradas, omitidas, sendo preservadas à todo custo, de 
+maneira cumulativa e convergente. Preserve ipsis litteris as partes não afetadas diretamente pelas alterações, 
+não desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente 
+das alteraçoes.
+
+Deve haver uma alteração no mecanismo de construção do corpus de texto analisado, onde a detecção da existência 
+de mais de uma fonte de texto, a qual gera um popup indicando ao usuário, o conflito entre as fontes, deve 
+sugerir a possibilidade de se usar todas as fontes, simultâneamente, para compor um corpus de texto unificado.
+
+Esta ativação do arquivo entity_finder.py, visa a identificação das entidades, e deve ocorrer de 
+maneira automática, em cada situação de texto postado, independente de qual das fontes seja usada para 
+compor o corpus de texto analisado.
+
+Partindo destas condições, temos que gerar uma nova aba, a qual acionará um quarto backend, 
+sendo este responsável pela identificação de entidades, pessoas e localidades, neste corpus de texto 
+definido pelo mecanismo anteriror, seja qual mecanismo de ingestão de conteúdo que for, único ou compartillhado. 
+Eata ativação funcionará gerando uma visualização das informações:
+
+a) Principais tópicos
+b) Resumo
+c) Pessoas 
+d) Entidades
+e) Localiddes
+f) Mapa
+
+Estas informações deverão ser compartilhadas com as outras aplicações, para fins de contexto ativados em 
+alterações posteriores.
+
+Deve haver uma aba "Entidades e Localidades" ,sendo a primeira ao lado das tres presentes i.e. 
+'Analise de sentimentos', 'Representaçao Social', 'Geraçao de timeline'. Esta inicialmente 
+devera estar em branco, e, apos a ativaçao da ingestao de texto com a ativaçao do botao 'Enviar conteudo', 
+este deve ser populado com os conteudos gerados por entity_finder.py, nesta ordem 
+
+a) Principais tópicos
+b) Resumo
+c) Pessoas 
+d) Entidades
+e) Localiddes
+f) Mapa
+
+Esta visualização, deve aproveitar dos elementos funcionais em entities_and_locations.html, e este html
+deve ser importado como parte do index.html, não sendo renderizado como uma página completa,
+estas funcionalidades devem ser fundidas na aba "Entidades e Localidades", onde serão apresentados.
+
+Garanta a aplicação convergente e cumulativa dos elementos estetitcos, funcionais e estilisticos 
+do projeto original, se sobrepondo aos elementos estilísticos da aplicação de entidades.
+
+Preserve todas as caracteristicas, de maneira cumulativa e convergente. Preserve ipsis litteris 
+as partes na afetadas diretamente pela alteraçao, nao desidrate, remova, retire, omita trechos e 
+funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes.
+
+
+
+
+├── app.py
+├── chrome_extension
+│   ├── background.js
+│   ├── content.js
+│   ├── icon.png
+│   ├── manifest.json
+│   ├── popup.html
+│   └── popup.js
+├── links_teste.txt
+├── modules
+│   ├── base.py
+│   ├── dist_normal.py
+│   ├── entity_finder.py
+│   ├── goose_scraper.py
+│   ├── representacao_social.py
+│   ├── sent_bayes.py
+│   └── timeline_generator.py
+├── output
+├── rasc.py
+├── requirements.txt
+├── static
+│   ├── css
+│   │   ├── app.css
+│   │   └── timeline.css
+│   ├── favicon.ico
+│   ├── generated 
+│   │   ├── timeline_output
+│   └── js
+│       ├── app.js
+│       └── timeline.js
+├── templates
+│   ├── entities.html
+│   ├── index.html
+│   ├── mapa.html
+│   └── timeline.html
+└── timeline.xml
+
+app.py
+from flask import Flask, request, render_template, jsonify
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import os
+import time
+import sys
+from dotenv import load_dotenv
+
+from modules.sent_bayes import SentimentAnalyzer
+from modules.representacao_social import process_representacao_social
+from modules.goose_scraper import scrape_links
+from modules.timeline_generator import TimelineGenerator, TimelineParser
+from modules.entity_finder import EntityClassifier, process_text  # Importar funções de entity_finder
+
+# Carregar variáveis de ambiente
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
+# Inicializar o Flask
+app = Flask(__name__)
+
+# Configuração da pasta de upload
+UPLOAD_FOLDER = './static/generated'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Inicializar o EntityClassifier com a chave da OpenAI
+entity_classifier = EntityClassifier(openai_api_key)
+
+# Variável global para armazenar conteúdo compartilhado
+shared_content = {
+    "text": None,
+    "html_fixed": None,
+    "html_dynamic": None,
+    "algorithm": None,
+    "bad_links": [],
+    "timeline_file": None,
+    "entities": None  # Adicionar campo para armazenar entidades
+}
+
+# Inicializar SentimentAnalyzer
+sentiment_analyzer = SentimentAnalyzer(output_dir=UPLOAD_FOLDER)
+
+@app.route('/')
+def index():
+    return render_template('index.html', shared_content=shared_content)
+
+# >>>>>>> ROTAS DA INGESTÃO DE CONTEÚDOS <<<<<<<
+@app.route('/ingest_content', methods=['POST'])
+def ingest_content():
+    global shared_content
+    uploaded_file = request.files.get('file')
+    text_input = request.form.get('text', '').strip()
+    links_input = request.form.get('links', '').strip()
+
+    sources_used = []
+    if uploaded_file and uploaded_file.filename:
+        sources_used.append('file')
+    if text_input:
+        sources_used.append('text')
+    if links_input:
+        sources_used.append('links')
+
+    if len(sources_used) > 1:
+        return jsonify({"status": "conflict", "sources": sources_used})
+
+    if uploaded_file and uploaded_file.filename:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
+        uploaded_file.save(filepath)
+        with open(filepath, 'r', encoding='utf-8') as f:
+            shared_content["text"] = f.read()
+    elif text_input:
+        shared_content["text"] = text_input
+    elif links_input:
+        links_list = [l.strip() for l in links_input.splitlines() if l.strip()]
+        if links_list:
+            try:
+                combined_text, bad_links = scrape_links(links_list)
+                shared_content["text"] = combined_text
+                shared_content["bad_links"] = bad_links
+            except Exception as e:
+                return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
+
+    shared_content["algorithm"] = "naive_bayes"
+    shared_content["bad_links"] = []  # Zerar a lista de links ruins caso venha de arquivo/texto
+
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+            shared_content["text"]
+        )
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        # Processar texto para identificar entidades
+        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
+
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Erro durante a ingestão de conteúdo: {e}")
+        return jsonify({"error": "Erro ao processar o conteúdo"}), 500
+
+@app.route('/ingest_links', methods=['POST'])
+def ingest_links():
+    global shared_content
+    links_text = request.form.get('links', '')
+    if not links_text.strip():
+        return jsonify({"error": "Nenhum link fornecido"}), 400
+
+    # Separar links por linha ou outro delimitador desejado
+    links_list = [l.strip() for l in links_text.splitlines() if l.strip()]
+    if not links_list:
+        return jsonify({"error": "Nenhum link válido fornecido"}), 400
+
+    # Raspagem de conteúdo usando o módulo goose_scraper
+    try:
+        combined_text, bad_links = scrape_links(links_list)
+        shared_content["text"] = combined_text
+        shared_content["bad_links"] = bad_links
+    except Exception as e:
+        print(f"Erro durante raspagem de links: {e}")
+        return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
+
+    # Ajuste para evitar erro 400 em /process_sentiment
+    shared_content["algorithm"] = "naive_bayes"
+
+    # Gerar conteúdo processado tal como é feito nas outras ingestões
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+            shared_content["text"]
+        )
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        # Retornamos também a lista de bad_links e os campos processados para o front-end
+        return jsonify({
+            "status": "success",
+            "bad_links": bad_links,
+            "html_fixed": {
+                "analyzedText": html_fixed,
+                "timestamp": analysis_ts,
+                "counts": f"Parágrafos: {num_pars}, Frases: {num_sents}",
+            },
+            "html_dynamic": html_dynamic
+        })
+    except Exception as e:
+        print(f"Erro durante a ingestão de conteúdo via links: {e}")
+        return jsonify({"error": "Erro ao processar o conteúdo"}), 500
+
+@app.route('/reset_content', methods=['POST'])
+def reset_content():
+    global shared_content
+    shared_content = {
+        "text": None, 
+        "html_fixed": None, 
+        "html_dynamic": None, 
+        "algorithm": None, 
+        "bad_links": [],
+        "timeline_file": None
+    }
+    return jsonify({"status": "success"})
+
+# >>>>>>> ROTAS DA ANÁLISE DE SENTIMENTOS <<<<<<<
+@app.route('/process_sentiment', methods=['POST'])
+def process_sentiment():
+    """Processa a análise de sentimentos e retorna o conteúdo dinâmico gerado."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "No content provided"}), 400
+    if not shared_content.get("algorithm"):
+        return jsonify({"error": "No algorithm selected"}), 400
+
+    try:
+        # Verifica se os conteúdos fixo e dinâmico estão disponíveis
+        if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
+            raise ValueError("HTML content not generated yet.")
+
+        return jsonify({
+            "html_fixed": {
+                "analyzedText": shared_content["html_fixed"],
+                "timestamp": shared_content.get("timestamp", ""),
+                "counts": shared_content.get("counts", ""),
+            },
+            "html_dynamic": shared_content["html_dynamic"]
+        })
+    except Exception as e:
+        app.logger.error(f"Error processing sentiment analysis: {e}")
+        return jsonify({"error": f"Processing error: {e}"}), 500
+
+@app.route('/select_algorithm_and_generate', methods=['POST'])
+def select_algorithm_and_generate():
+    """Seleciona o algoritmo e realiza a análise de sentimentos."""
+    global shared_content
+    algorithm = request.form.get('algorithm', None)
+    if not algorithm:
+        return jsonify({"error": "Nenhum algoritmo selecionado"}), 400
+
+    # Atualizar para permitir apenas o algoritmo Naive Bayes
+    if algorithm != "naive_bayes":
+        return jsonify({"error": "Algoritmo não suportado"}), 400
+
+    shared_content["algorithm"] = algorithm
+
+    # Validação do texto
+    text = shared_content.get("text")
+    if not text:
+        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
+
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(text)
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        return jsonify({"status": "Análise concluída"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+# >>>>>>> ROTAS DAS REPRESENTAÇÕES SOCIAIS <<<<<<<
+@app.route('/process', methods=['POST'])
+def process():
+    """
+    Rota para análise de Representação Social. 
+    A funcionalidade foi movida para a função process_representacao_social,
+    importada do script representacao_social.py.
+    """
+    global shared_content
+    if not shared_content["text"]:
+        return jsonify({"error": "No content provided"}), 400
+
+    # Chama a função que faz todo o cálculo e retorna o HTML
+    return process_representacao_social(
+        shared_content["text"],
+        request.form,
+        app.config['UPLOAD_FOLDER']
+    )
+
+# >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
+@app.route('/entities_and_locations')
+def entities_and_locations():
+    if not shared_content.get("entities"):
+        return jsonify({"error": "Nenhuma entidade encontrada"}), 400
+
+    return render_template('entities_and_locations.html', entities=shared_content["entities"])
+
+# >>>>>>> ROTAS DA TIMELINE <<<<<<<
+@app.route('/generate_timeline', methods=['POST'])
+def generate_timeline():
+    """
+    Rota para gerar a timeline a partir do conteúdo de texto já ingerido.
+    """
+    global shared_content
+
+    # Pega o que vier do front-end
+    text = request.form.get("text", "")
+    
+    # Se vier vazio, tenta usar o que já está armazenado em shared_content
+    if not text:
+        text = shared_content.get("text", "")
+    
+    if not text.strip():
+        return jsonify({"error": "Texto não fornecido"}), 400
+
+    try:
+        timeline_file = TimelineGenerator().create_timeline(text.splitlines())
+        shared_content["timeline_file"] = timeline_file
+        return jsonify({"status": "success", "timeline_file": timeline_file})
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
+
+@app.route('/view_timeline', methods=['GET'])
+def view_timeline():
+    """
+    Rota para exibir a timeline gerada, agora retornando 'timeline.html' via JSON.
+    """
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"status": "error", "message": "Nome do arquivo não fornecido"}), 400
+
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
+    if not os.path.isfile(timeline_file):
+        return jsonify({"status": "error", "message": f"Arquivo não encontrado: {timeline_file}"}), 404
+
+    # Renderiza o template timeline.html
+    html_str = render_template('timeline.html')
+    return jsonify({"status": "success", "html": html_str, "filename": filename})
+
+@app.route('/list_timelines')
+def list_timelines():
+    timeline_dir = "static/generated/timeline_output"
+    try:
+        timelines = [f for f in os.listdir(timeline_dir) if f.endswith('.timeline')]
+        return jsonify({"status": "success", "timelines": timelines})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/timeline_data')
+def timeline_data():
+    """
+    Rota que parseia o arquivo .timeline e retorna os dados em JSON para o D3 desenhar.
+    """
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"error": "Nome do arquivo não fornecido"}), 400
+
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
+    if not os.path.isfile(timeline_file):
+        return jsonify({"error": f"Arquivo não encontrado: {timeline_file}"}), 404
+
+    parser = TimelineParser()
+    try:
+        data = parser.parse_timeline_xml(timeline_file)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
+
+# >>>>>>> ROTA DO DOM <<<<<<<
+@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário
+def receive_dom():
+    try:
+        print("API: Received a POST request")
+        # Recebe o conteúdo enviado em formato JSON
+        data = request.get_json()
+        print("API: JSON payload:", data)
+
+        if not data:
+            print("API: No JSON data received")
+            return jsonify({"error": "No JSON data received"}), 400
+
+        dom_content = data.get("dom", "")
+        page_url = data.get("url", "Unknown URL")
+
+        if not dom_content:
+            print("API: No DOM content provided")
+            return jsonify({"error": "No DOM content provided"}), 400
+
+        # Apresenta o URL e o DOM recebido
+        print(f"API: Received DOM from URL: {page_url}")
+        print("API: Received DOM length:", len(dom_content))
+        print("API: First 500 characters of DOM:")
+        print(dom_content[:500])
+
+        # Retorna confirmação
+        return jsonify({"status": "success", "message": "DOM received"}), 200
+    except Exception as e:
+        print("API: Exception occurred:", e)
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    print(">>> Iniciando aplicação Flask em modo debug.")
+    app.run(debug=True)
+
+
+index.html  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ephor - Análise de Conteúdo</title>
+    <!-- CSS do Bootstrap -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <!-- CSS do DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <!-- CSS específico para a Timeline -->
+    <link rel="stylesheet" href="/static/css/timeline.css">
+    <!-- Outros links de CSS, se houver -->
+    <!-- Incluir D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Ephor - Análise de Conteúdo</h1>
+
+        <!-- Área de ingestão de texto ou visualização de conteúdo fixo -->
+        <div id="ingestContent" class="mb-4">
+            <form id="ingestForm">
+                <!-- Abas para escolha da fonte de texto -->
+                <ul class="nav nav-tabs" id="ingestTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="file-tab" data-bs-toggle="tab" data-bs-target="#fileContent" type="button" role="tab" aria-controls="fileContent" aria-selected="true">
+                            Texto via Arquivo
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="text-tab" data-bs-toggle="tab" data-bs-target="#textContent" type="button" role="tab" aria-controls="textContent" aria-selected="false">
+                            Texto Copiado
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="links-tab" data-bs-toggle="tab" data-bs-target="#linksContent" type="button" role="tab" aria-controls="linksContent" aria-selected="false">
+                            Texto de Links
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-3 border border-top-0" id="ingestTabContent">
+                    <!-- Aba: Texto via Arquivo -->
+                    <div class="tab-pane fade show active" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
+                        <div class="mb-3">
+                            <label for="inputFile" class="form-label">Carregar Arquivo de Texto</label>
+                            <input type="file" id="inputFile" name="file" class="form-control" accept=".txt">
+                        </div>
+                    </div>
+
+                    <!-- Aba: Texto Copiado -->
+                    <div class="tab-pane fade" id="textContent" role="tabpanel" aria-labelledby="text-tab">
+                        <div class="mb-3">
+                            <label for="inputText" class="form-label">Cole Texto Aqui</label>
+                            <textarea id="inputText" name="text" class="form-control" rows="5"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Aba: Texto de Links -->
+                    <div class="tab-pane fade" id="linksContent" role="tabpanel" aria-labelledby="links-tab">
+                        <div class="mb-3">
+                            <label for="linksArea" class="form-label">Insira os links aqui (um por linha)</label>
+                            <textarea id="linksArea" name="links" class="form-control" rows="5"></textarea>
+                        </div>
+                        <div id="linksErrorList" class="text-danger mt-3" style="display: none;"></div>
+                        <div id="loadingMessage" class="text-primary mt-3" style="display: none;">
+                            <p>Aguarde enquanto processamos os links...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" id="ingestBtn" class="btn btn-primary mt-3">Enviar Conteúdo</button>
+            </form>
+        </div>
+
+        <!-- Exibição de conteúdo fixo -->
+        <div id="fixedContent" class="mb-4 d-none">
+            <div id="analyzedText" class="border p-3 mb-3" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div>
+            <div id="timestamp" class="border p-3 mb-3"></div>
+            <div id="counts" class="border p-3 mb-3"></div>
+            <button type="button" id="resetBtn" class="btn btn-warning">Enviar Outro Conteúdo</button>
+        </div>
+
+        <!-- Abas para as análises e para a timeline -->
+        <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="true">
+                    Análise de Sentimentos
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button" role="tab" aria-controls="content" aria-selected="false">
+                    Representação Social
+                </button>
+            </li>
+            <!-- Aba para Geração de Timeline -->
+            <li class="nav-item">
+                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
+                    Geração de Timeline
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content mt-3">
+            <!-- Aba de Análise de Sentimentos -->
+            <div class="tab-pane fade show active" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
+                <form id="sentimentForm">
+                    <div class="mb-3">
+                        <label for="algorithm" class="form-label">Selecione o Algoritmo</label>
+                        <select id="algorithm" name="algorithm" class="form-select">
+                            <option value="naive_bayes" selected>Naive Bayes</option>
+                        </select>
+                    </div>
+                    <button type="button" id="sentimentBtn" class="btn btn-primary">Gerar Análise</button>
+                </form>
+                <div id="sentimentResults" class="mt-3"></div>
+            </div>
+
+            <!-- Aba de Representação Social -->
+            <div class="tab-pane fade" id="content" role="tabpanel" aria-labelledby="content-tab">
+                <form id="contentForm">
+                    <div class="mb-3">
+                        <label for="stopwords" class="form-label">Filtro de Stopwords</label>
+                        <select id="stopwords" name="stopwords" class="form-select">
+                            <option value="com">Com Stopwords</option>
+                            <option value="sem">Sem Stopwords</option>
+                            <option value="stopwords">Apenas Stopwords</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="zone" class="form-label">Filtro de Zonas</label>
+                        <select id="zone" name="zone" class="form-select">
+                            <option value="Núcleo Central">Núcleo Central</option>
+                            <option value="Zona Periférica 1">Zona Periférica 1</option>
+                            <option value="Zona Periférica 2">Zona Periférica 2</option>
+                            <option value="Zona Periférica 3">Zona Periférica 3</option>
+                            <option value="todas">Todas as Zonas</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="extraFilter" class="form-label">Filtro Extra</label>
+                        <select id="extraFilter" name="extra_filter" class="form-select">
+                            <option value="nao">Não Aplicar</option>
+                            <option value="sim">Remover Números e Emojis</option>
+                        </select>
+                    </div>
+                    <button type="button" id="contentBtn" class="btn btn-primary">Gerar Análise</button>
+                </form>
+                <div id="contentResults" class="mt-3"></div>
+            </div>
+
+            <!-- Aba de Geração de Timeline -->
+            <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
+                <form id="timelineForm">
+                    <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
+                </form>
+                <div id="timelineResults" class="mt-3">
+                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
+                </div>
+                <!-- Lista de timelines disponíveis -->
+                <div id="timelineList" class="mt-3">
+                    <h4>Timelines Disponíveis</h4>
+                    <ul id="timelineFiles" class="list-group">
+                        <!-- As timelines serão carregadas aqui via JavaScript -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts JavaScript -->
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <!-- JavaScript específico da aplicação -->
+    <script src="/static/js/app.js"></script>
+    <!-- Timeline JS -->
+    <script src="/static/js/timeline.js"></script>
+    <!-- Bootstrap JS Bundle (inclui Popper) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+app.js  
+$(document).ready(function () {
+    const ingestContent = $('#ingestContent');
+    const fixedContent = $('#fixedContent');
+    const analyzedText = $('#analyzedText');
+    const timestamp = $('#timestamp');
+    const counts = $('#counts');
+    const linksErrorList = $('#linksErrorList');
+
+    // Função para carregar a lista de timelines disponíveis
+    function loadTimelineList() {
+        $.ajax({
+            url: '/list_timelines', // Rota para listar os arquivos de timeline
+            type: 'GET',
+            success: function (data) {
+                const timelineFiles = $('#timelineFiles');
+                timelineFiles.empty(); // Limpa a lista atual
+                if (data.timelines && data.timelines.length > 0) {
+                    data.timelines.forEach(timeline => {
+                        const listItem = $(`<li class="list-group-item">${timeline}</li>`);
+                        listItem.on('click', function () {
+                            loadTimeline(timeline); // Carrega a timeline selecionada
+                        });
+                        timelineFiles.append(listItem);
+                    });
+                } else {
+                    timelineFiles.append('<li class="list-group-item">Nenhuma timeline disponível.</li>');
+                }
+            },
+            error: function () {
+                alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Função para carregar uma timeline específica
+    function loadTimeline(filename) {
+        $.ajax({
+            url: `/view_timeline?file=${filename}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                if (data.status === "success") {
+                    $('#timelineResults').html(data.html); // Exibe a timeline
+                    // Chama a função para carregar os dados da timeline
+                    fetchTimelineData(filename);
+                } else {
+                    alert("Erro ao carregar a timeline: " + data.error);
+                }
+            },
+            error: function () {
+                alert("Erro ao carregar a timeline. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Função para buscar os dados da timeline
+    function fetchTimelineData(filename) {
+        $.ajax({
+            url: `/timeline_data?file=${filename}`,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                if (data) {
+                    drawTimeline(data); // Desenha a timeline com os dados recebidos
+                } else {
+                    alert("Erro ao carregar os dados da timeline.");
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("Erro ao buscar os dados da timeline:", error);
+                alert("Erro ao buscar os dados da timeline. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Função para mostrar popup de decisão (adaptada para três fontes)
+    function showSourceConflictPopup(options, onSelect) {
+        let message = '<p>Detectamos que você preencheu mais de uma fonte de texto:</p><ul>';
+        options.forEach(opt => {
+            if (opt === 'file') message += '<li>Arquivo</li>';
+            if (opt === 'text') message += '<li>Texto Copiado</li>';
+            if (opt === 'links') message += '<li>Links</li>';
+        });
+        message += '</ul><p>Por favor, escolha qual fonte deseja usar:</p>';
+
+        let popup = $(
+            `<div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%; 
+                 transform: translate(-50%, -50%); background: white; padding: 20px; 
+                 border: 1px solid #ccc; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); 
+                 z-index: 9999;">
+                <h5>Conflito de fontes de texto</h5>
+                ${message}
+            </div>`
+        );
+
+        options.forEach(opt => {
+            let label = '';
+            if (opt === 'file') label = 'Usar Arquivo';
+            if (opt === 'text') label = 'Usar Texto Copiado';
+            if (opt === 'links') label = 'Usar Links';
+            let btn = $(`<button class="btn btn-primary m-1">${label}</button>`);
+            btn.on('click', function () {
+                popup.remove();
+                onSelect(opt);
+            });
+            popup.append(btn);
+        });
+
+        $('body').append(popup);
+    }
+
+    function processSentiment() {
+        $.ajax({
+            url: '/process_sentiment',
+            type: 'POST',
+            success: function (data) {
+                if (data.html_fixed && data.html_dynamic) {
+                    analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
+                    timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
+                    counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                    $('#sentimentResults').html(data.html_dynamic);
+                    fixedContent.removeClass('d-none'); // Certificar que o conteúdo é exibido
+                } else {
+                    alert("Erro ao processar os resultados. Verifique o servidor.");
+                }
+            },
+            error: function () {
+                alert("Erro ao processar a análise de sentimentos. Verifique o servidor.");
+            }
+        });
+    }
+
+    // Botão de Enviar Conteúdo
+    $('#ingestBtn').on('click', function () {
+        linksErrorList.empty().hide();
+
+        const fileInput = $('#inputFile').val();
+        const textInput = $('#inputText').val().trim();
+        const linksInput = $('#linksArea').val().trim();
+
+        let sourcesUsed = [];
+        if (fileInput) sourcesUsed.push('file');
+        if (textInput) sourcesUsed.push('text');
+        if (linksInput) sourcesUsed.push('links');
+
+        // Verificar o formato do arquivo se selecionado
+        if (fileInput && !fileInput.endsWith('.txt')) {
+            alert('Apenas arquivos .txt são permitidos.');
+            return;
+        }
+
+        if (sourcesUsed.length > 1) {
+            showSourceConflictPopup(sourcesUsed, (selectedSource) => {
+                if (selectedSource === 'file') {
+                    let formData = new FormData($('#ingestForm')[0]);
+                    formData.delete('text');
+                    formData.delete('links');
+                    $.ajax({
+                        url: '/ingest_content',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function () {
+                            ingestContent.addClass('d-none');
+                            processSentiment();
+                        },
+                        error: function () {
+                            alert("Erro ao enviar conteúdo (arquivo). Verifique o servidor.");
+                        }
+                    });
+                } else if (selectedSource === 'text') {
+                    let formData = new FormData();
+                    formData.append('text', textInput);
+                    $.ajax({
+                        url: '/ingest_content',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function () {
+                            ingestContent.addClass('d-none');
+                            processSentiment();
+                        },
+                        error: function () {
+                            alert("Erro ao enviar conteúdo (texto). Verifique o servidor.");
+                        }
+                    });
+                } else if (selectedSource === 'links') {
+                    let formData = new FormData();
+                    formData.append('links', linksInput);
+
+                    // Exibir mensagem de aguarde
+                    const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
+                    ingestContent.append(loadingMessage);
+
+                    $.ajax({
+                        url: '/ingest_links',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function (data) {
+                            loadingMessage.remove();
+                            ingestContent.addClass('d-none');
+                            if (data.html_fixed) {
+                                analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
+                                timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
+                                counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                            }
+                            if (data.bad_links && data.bad_links.length > 0) {
+                                linksErrorList.html(
+                                    "<strong>Links com falha ou sem conteúdo:</strong><br>" +
+                                    data.bad_links.join("<br>")
+                                ).show();
+                            }
+                            fixedContent.removeClass('d-none');
+                        },
+                        error: function () {
+                            loadingMessage.remove();
+                            alert("Erro ao enviar conteúdo (links). Verifique o servidor.");
+                        }
+                    });
+                }
+            });
+        } else {
+            if (fileInput) {
+                let formData = new FormData($('#ingestForm')[0]);
+                $.ajax({
+                    url: '/ingest_content',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function () {
+                        ingestContent.addClass('d-none');
+                        processSentiment();
+                    },
+                    error: function () {
+                        alert("Erro ao enviar conteúdo (arquivo). Verifique o servidor.");
+                    }
+                });
+            } else if (textInput) {
+                let formData = new FormData();
+                formData.append('text', textInput);
+                $.ajax({
+                    url: '/ingest_content',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function () {
+                        ingestContent.addClass('d-none');
+                        processSentiment();
+                    },
+                    error: function () {
+                        alert("Erro ao enviar conteúdo (texto). Verifique o servidor.");
+                    }
+                });
+            } else if (linksInput) {
+                let formData = new FormData();
+                formData.append('links', linksInput);
+
+                // Exibir mensagem de aguarde
+                const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
+                ingestContent.append(loadingMessage);
+
+                $.ajax({
+                    url: '/ingest_links',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (data) {
+                        loadingMessage.remove();
+                        ingestContent.addClass('d-none');
+                        if (data.html_fixed) {
+                            analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
+                            timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
+                            counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                        }
+                        if (data.bad_links && data.bad_links.length > 0) {
+                            linksErrorList.html(
+                                "<strong>Links com falha ou sem conteúdo:</strong><br>" +
+                                data.bad_links.join("<br>")
+                            ).show();
+                        }
+                        fixedContent.removeClass('d-none');
+                    },
+                    error: function () {
+                        loadingMessage.remove();
+                        alert("Erro ao enviar conteúdo (links). Verifique o servidor.");
+                    }
+                });
+            } else {
+                alert("Nenhuma fonte de conteúdo fornecida.");
+            }
+        }
+    });
+
+    // Botão de Reset
+    $('#resetBtn').on('click', function () {
+        $.post('/reset_content', function () {
+            fixedContent.addClass('d-none');
+            ingestContent.removeClass('d-none');
+            $('#inputText').val('');
+            $('#inputFile').val('');
+            $('#linksArea').val('');
+            linksErrorList.empty().hide();
+        });
+    });
+
+    // Botão de Análise de Representação Social
+    $('#contentBtn').on('click', function () {
+        const formData = new FormData($('#contentForm')[0]);
+        $.ajax({
+            url: '/process',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (data) {
+                $('#contentResults').html(data.html);
+                $('#contentResults table').each(function () {
+                    const columnCount = $(this).find('thead th').length;
+                    if (columnCount > 0) {
+                        $(this).DataTable({
+                            paging: false,
+                            info: false,
+                            searching: false,
+                        });
+                    }
+                });
+            },
+            error: function () {
+                alert("Erro ao processar representação social. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Botão de Análise de Sentimentos
+    $('#sentimentBtn').on('click', function () {
+        const formData = new FormData($('#sentimentForm')[0]);
+        $.ajax({
+            url: '/select_algorithm_and_generate',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function () {
+                $.ajax({
+                    url: '/process_sentiment',
+                    type: 'POST',
+                    success: function (data) {
+                        $('#sentimentResults').html(data.html_dynamic);
+                    },
+                    error: function () {
+                        alert("Erro ao processar a análise de sentimentos. Verifique o servidor.");
+                    }
+                });
+            },
+            error: function () {
+                alert("Erro ao selecionar o algoritmo. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Botão de Geração de Timeline
+    $('#timelineBtn').on('click', function () {
+        const textInput = $('#inputText').val().trim();
+
+        $.ajax({
+            url: '/generate_timeline',
+            type: 'POST',
+            data: { text: textInput },
+            success: function (data) {
+                if (data.status === "success") {
+                    // Carrega a timeline gerada
+                    loadTimeline(data.timeline_file);
+                    // Atualiza a lista de timelines
+                    loadTimelineList();
+                } else {
+                    alert("Falha na geração da timeline: " + data.error);
+                }
+            },
+            error: function () {
+                alert("Erro ao gerar timeline. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Carregar entidades e localidades ao abrir a aba
+    $('#entities-tab').on('click', function () {
+        $.ajax({
+            url: '/entities_and_locations',
+            type: 'GET',
+            success: function (data) {
+                $('#entitiesResults').html(data);
+            },
+            error: function () {
+                alert("Erro ao carregar entidades e localidades. Verifique o servidor.");
+            }
+        });
+    });
+});
+
+app.css
+/* Estilos gerais */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+h1, h2 {
+    color: #2c3e50;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+/* Formulário */
+form {
+    margin-bottom: 20px;
+}
+
+textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+/* Colunas */
+.coluna {
+    margin-bottom: 20px;
+}
+
+.coluna h2 {
+    margin-bottom: 10px;
+    font-size: 24px;
+    color: #34495e;
+}
+
+/* Listas de entidades */
+.entidade {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #ecf0f1;
+    border-radius: 4px;
+}
+
+.entidade strong {
+    font-size: 18px;
+    color: #2c3e50;
+}
+
+.emoji {
+    font-size: 20px;
+}
+
+.imagem-miniatura {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    transition: transform 0.3s;
+    cursor: pointer;
+}
+
+.imagem-miniatura:hover {
+    transform: scale(2);
+}
+
+/* Mapa */
+.mapa-container {
+    width: 100%;
+    height: 500px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+/* Mensagem de processamento */
+#processing {
+    background-color: #ecf0f1;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 20px;
+    color: #34495e;
+    font-style: italic;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+
+    .coluna {
+        flex-direction: column;
+    }
+
+    .entidade {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .imagem-miniatura {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+entity_finder.py  
+import spacy
+from summarizer import Summarizer
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+import numpy as np
+import folium
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import time
+import requests
+import json
+from openai import OpenAI
+
+class EntityClassifier:
+    """
+    Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
+    e de busca de imagem (etapa 2), incluindo fallback na SerpAPI caso a OpenAI
+    não retorne uma imagem.
+    """
+
+    def __init__(self, openai_api_key):
+        self.openai_client = OpenAI(api_key=openai_api_key)
+        self.nlp = spacy.load("pt_core_news_sm")
+        self.bert_model = Summarizer()
+        self.sia = SentimentIntensityAnalyzer()
+        self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
+
+    def classificar_em_bloco(self, entidades_unicas):
+        """
+        Faz uma única chamada à API da OpenAI para classificar uma lista de entidades.
+        Retorna um dicionário {entidade: {"tipo":..., "local":...}}.
+        """
+        print(">>> [ETAPA 1] classificar_entidades_em_bloco: Iniciando classificação em lote...")
+
+        try:
+            # Prompt que enfatiza a unicidade das entidades
+            prompt_str = """
+            Você receberá uma lista de entidades (pessoas, organizações ou localizações).
+            1) NÃO retorne duplicados. Cada entidade só deve aparecer uma única vez.
+            2) Responda estritamente em JSON, no formato:
+            {
+                "resultado": [
+                    {"entidade": "...", "tipo": "pessoa|organizacao|localizacao|desconhecido", "local": "... ou null"},
+                    ...
+                ]
+            }
+            Liste todas as entidades de entrada, garantindo que cada uma apareça exatamente uma vez no array 'resultado'.
+            """
+
+            prompt_entidades = "Lista de entidades:\n" + "\n".join([f"- {e}" for e in entidades_unicas])
+            prompt_final = prompt_str + "\n\n" + prompt_entidades
+
+            print(">>> [ETAPA 1] classificar_entidades_em_bloco: Enviando para OpenAI GPT-4...")
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt_final}]
+            )
+            conteudo = response.choices[0].message.content
+            print("\n--- Resposta da API (etapa 1) ---")
+            print(conteudo)
+
+            data = json.loads(conteudo)
+            classif_dict = {}
+            for item in data.get("resultado", []):
+                ent = item.get("entidade", "")
+                tipo_raw = item.get("tipo", "desconhecido")
+                loc_raw = item.get("local", None)
+
+                tipo_map = {
+                    "pessoa": "pessoa",
+                    "organizacao": "organização",
+                    "localizacao": "localização",
+                    "desconhecido": "desconhecido"
+                }
+                tipo_final = tipo_map.get(tipo_raw, "desconhecido")
+                loc_final = loc_raw if loc_raw != "null" else None
+                classif_dict[ent] = {
+                    "tipo": tipo_final,
+                    "local": loc_final
+                }
+
+            print(">>> [ETAPA 1] Classificação em lote concluída.")
+            return classif_dict
+
+        except Exception as e:
+            print(f"Erro na classificação em bloco: {e}")
+            return {}
+
+    def buscar_imagem(self, query, tipo):
+        """
+        Tenta obter um link de imagem da OpenAI (etapa 2). Em caso de falha ou erro
+        no conteúdo retornado, faz o fallback para a SerpAPI.
+        """
+        print(f">>> [ETAPA 2] buscar_imagem: Buscando imagem para '{query}' como '{tipo}' usando GPT-4...")
+        try:
+            prompt = f"""
+            Você é um sistema que retorna links de imagens.
+            Entrada: '{query}' (tipo: {tipo})
+            Retorne estritamente em JSON, no formato:
+            {{
+                "imagem_url": "https://exemplo-de-imagem.jpg"
+            }}
+            Dê preferência a links representativos e recentes.
+            """
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            conteudo = response.choices[0].message.content
+            print("\n--- Resposta da API (etapa 2) ---")
+            print(conteudo)
+
+            data = json.loads(conteudo)
+            imagem_url = data.get("imagem_url", None)
+            if not imagem_url or not imagem_url.startswith("http"):
+                print(f">>> [ETAPA 2] buscar_imagem: Nenhum link válido via OpenAI; fallback para SerpAPI.")
+                return self.buscar_imagem_serpapi(query, tipo)
+
+            print(f">>> [ETAPA 2] buscar_imagem: Link retornado para '{query}': {imagem_url}")
+            return imagem_url
+
+        except Exception as e:
+            print(f"Erro ao buscar imagem pela OpenAI: {e}")
+            print(">>> [ETAPA 2] buscando imagem pela SerpAPI como fallback.")
+            return self.buscar_imagem_serpapi(query, tipo)
+
+    def buscar_imagem_serpapi(self, query, tipo):
+        """
+        Fallback para busca de imagem na SerpAPI.
+        """
+        print(f">>> [FALLBACK] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
+        try:
+            params = {
+                "q": f"{query} {tipo}",
+                "tbm": "isch",
+                "api_key": "sua_chave_serpapi_aqui"
+            }
+            response = requests.get("https://serpapi.com/search", params=params)
+            if response.status_code == 200:
+                results = response.json()
+                if "images_results" in results and len(results["images_results"]) > 0:
+                    first_thumb = results["images_results"][0]["thumbnail"]
+                    print(f">>> [FALLBACK] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
+                    return first_thumb
+            print(f">>> [FALLBACK] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
+            return None
+        except Exception as e:
+            print(f"Erro na SerpAPI: {e}")
+            return None
+
+def process_text(text, classifier):
+    """
+    Processa o texto para identificar entidades, sumarizar e gerar tópicos.
+    """
+    print(">>> Iniciando processamento de texto...")
+    doc = classifier.nlp(text)
+    entidades = [ent.text for ent in doc.ents]
+    print(f">>> Entidades detectadas: {entidades}")
+
+    # Classificação em lote
+    entidades_unicas = list(set(entidades))
+    classificacoes = classifier.classificar_em_bloco(entidades_unicas)
+
+    entidades_classificadas = []
+    for ent in entidades:
+        if ent in classificacoes:
+            etype = classificacoes[ent]["tipo"]
+            elocal = classificacoes[ent]["local"]
+            entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
+        else:
+            entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
+
+    # Separar entidades em pessoas/organizações e localizações
+    pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
+    localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
+
+    # Análise de sentimento
+    pessoas_organizacoes_com_sentimento = []
+    for entidade_info in pessoas_organizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        pessoas_organizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    localizacoes_com_sentimento = []
+    for entidade_info in localizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        localizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    # Geração de resumo com BERT
+    resumo = classifier.bert_model(text)
+
+    # Clustering de tópicos
+    frases = [sent.text for sent in doc.sents]
+    if len(frases) > 1:
+        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+        X = vectorizer.fit_transform(frases)
+        num_clusters = min(3, len(frases))
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+        kmeans.fit(X)
+        clusters = kmeans.labels_
+
+        topicos = {}
+        for i, c in enumerate(clusters):
+            if c not in topicos:
+                topicos[c] = []
+            topicos[c].append(frases[i])
+
+        topicos_principais = []
+        for c in topicos:
+            centroide = np.mean(X[clusters == c], axis=0)
+            indice_representante = np.argmin(
+                np.linalg.norm(X[clusters == c] - centroide, axis=1)
+            )
+            topicos_principais.append(topicos[c][indice_representante])
+    else:
+        topicos_principais = ["Não há frases suficientes para clustering."]
+
+    # Busca de imagens para cada entidade
+    pessoas_organizacoes_com_imagens = []
+    for entidade_info in pessoas_organizacoes_com_sentimento:
+        if entidade_info["tipo"] == "pessoa":
+            image_link = classifier.buscar_imagem(entidade_info["entidade"], "pessoa")
+        elif entidade_info["tipo"] == "organização":
+            image_link = classifier.buscar_imagem(entidade_info["entidade"], "organização")
+        else:
+            image_link = None
+        pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    localizacoes_com_imagens = []
+    for entidade_info in localizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem(entidade_info["entidade"], "localização")
+        localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    return {
+        "pessoas": pessoas_organizacoes_com_imagens,
+        "localizacoes": localizacoes_com_imagens,
+        "resumo": resumo,
+        "topicos": topicos_principais
+    }
+
+entities_and_locations.html
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entidades e Localidades</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Entidades e Localidades</h1>
+
+        <!-- Tópicos Principais -->
+        <div class="coluna">
+            <h2>Tópicos Principais:</h2>
+            <ul>
+                {% for topico in entities.topicos %}
+                <li>{{ topico }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Resumo -->
+        <div class="coluna">
+            <h2>Resumo:</h2>
+            <p>{{ entities.resumo }}</p>
+        </div>
+
+        <!-- Pessoas e Organizações -->
+        <div class="coluna">
+            <h2>Pessoas e Organizações:</h2>
+            <ul>
+                {% for pessoa in entities.pessoas %}
+                    <li class="entidade">
+                        <strong>{{ pessoa.entidade }}</strong>
+                        <span class="emoji">
+                            {% if pessoa.sentimento > 0.05 %}
+                                😊
+                            {% elif pessoa.sentimento < -0.05 %}
+                                😠
+                            {% else %}
+                                😐
+                            {% endif %}
+                        </span>
+                        {% if pessoa.imagem %}
+                            <img 
+                                src="{{ pessoa.imagem }}" 
+                                alt="{{ pessoa.entidade }}" 
+                                class="imagem-miniatura"
+                            >
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Localizações -->
+        <div class="coluna">
+            <h2>Localizações:</h2>
+            <ul>
+                {% for loc in entities.localizacoes %}
+                    <li class="entidade">
+                        <strong>{{ loc.entidade }}</strong>
+                        <span class="emoji">
+                            {% if loc.sentimento > 0.05 %}
+                                😊
+                            {% elif loc.sentimento < -0.05 %}
+                                😠
+                            {% else %}
+                                😐
+                            {% endif %}
+                        </span>
+                        {% if loc.imagem %}
+                            <img 
+                                src="{{ loc.imagem }}" 
+                                alt="{{ loc.entidade }}" 
+                                class="imagem-miniatura"
+                            >
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Mapa de Localizações -->
+        <div class="coluna">
+            <h2>Mapa de Localizações:</h2>
+            <div class="mapa-container">
+                <iframe src="/mapa" width="100%" height="100%"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

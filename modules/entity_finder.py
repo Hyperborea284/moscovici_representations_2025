@@ -1,4 +1,3 @@
-from flask import Flask, request, render_template, redirect, url_for
 import spacy
 from summarizer import Summarizer
 import nltk
@@ -11,35 +10,9 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import time
 import requests
-import os
 import json
-from dotenv import load_dotenv
-import openai
 from openai import OpenAI
 
-###############################################################################
-# Carrega variáveis de ambiente e configura o Flask
-###############################################################################
-load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
-
-app = Flask(__name__)
-
-###############################################################################
-# Configurações e Inicializações
-###############################################################################
-openai_client = OpenAI(api_key=openai_api_key)
-nlp = spacy.load("pt_core_news_sm")
-bert_model = Summarizer()
-sia = SentimentIntensityAnalyzer()
-geolocator = Nominatim(user_agent="my_flask_app/1.0")
-
-
-###############################################################################
-# Classes de apoio
-###############################################################################
 class EntityClassifier:
     """
     Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
@@ -47,16 +20,17 @@ class EntityClassifier:
     não retorne uma imagem.
     """
 
-    def __init__(self, openai_client):
-        self.openai_client = openai_client
+    def __init__(self, openai_api_key):
+        self.openai_client = OpenAI(api_key=openai_api_key)
+        self.nlp = spacy.load("pt_core_news_sm")
+        self.bert_model = Summarizer()
+        self.sia = SentimentIntensityAnalyzer()
+        self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
 
     def classificar_em_bloco(self, entidades_unicas):
         """
         Faz uma única chamada à API da OpenAI para classificar uma lista de entidades.
         Retorna um dicionário {entidade: {"tipo":..., "local":...}}.
-
-        Aqui, adicionamos explicitamente a instrução para NÃO retornar duplicados
-        no array "resultado", de modo a reforçar a unicidade.
         """
         print(">>> [ETAPA 1] classificar_entidades_em_bloco: Iniciando classificação em lote...")
 
@@ -120,7 +94,6 @@ class EntityClassifier:
         no conteúdo retornado, faz o fallback para a SerpAPI.
         """
         print(f">>> [ETAPA 2] buscar_imagem: Buscando imagem para '{query}' como '{tipo}' usando GPT-4...")
-        # 1) Tenta pela OpenAI
         try:
             prompt = f"""
             Você é um sistema que retorna links de imagens.
@@ -177,199 +150,97 @@ class EntityClassifier:
             print(f"Erro na SerpAPI: {e}")
             return None
 
-
-###############################################################################
-# Funções auxiliares
-###############################################################################
-def obter_coordenadas(localizacao):
+def process_text(text, classifier):
     """
-    Obtém as coordenadas de um local usando geopy. Preservado ipsis litteris.
+    Processa o texto para identificar entidades, sumarizar e gerar tópicos.
     """
-    try:
-        time.sleep(1)  # 1 segundo de delay para evitar exceder limite
-        location = geolocator.geocode(localizacao, timeout=10)
-        if location:
-            return (location.latitude, location.longitude)
+    print(">>> Iniciando processamento de texto...")
+    doc = classifier.nlp(text)
+    entidades = [ent.text for ent in doc.ents]
+    print(f">>> Entidades detectadas: {entidades}")
+
+    # Classificação em lote
+    entidades_unicas = list(set(entidades))
+    classificacoes = classifier.classificar_em_bloco(entidades_unicas)
+
+    entidades_classificadas = []
+    for ent in entidades:
+        if ent in classificacoes:
+            etype = classificacoes[ent]["tipo"]
+            elocal = classificacoes[ent]["local"]
+            entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
         else:
-            return None
-    except (GeocoderTimedOut, GeocoderServiceError) as e:
-        print(f"Erro ao geocodificar {localizacao}: {e}")
-        return None
+            entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
 
+    # Separar entidades em pessoas/organizações e localizações
+    pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
+    localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
 
-###############################################################################
-# Rota principal
-###############################################################################
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        # Botão de Nova Análise
-        if request.form.get("nova_analise"):
-            print(">>> Botão 'Nova Análise' acionado. Redirecionando para index().")
-            return redirect(url_for("index"))
+    # Análise de sentimento
+    pessoas_organizacoes_com_sentimento = []
+    for entidade_info in pessoas_organizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        pessoas_organizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
 
-        print(">>> Botão 'Analisar' foi acionado.")
-        texto = request.form["texto"]
-        print(f">>> Texto recebido: {texto[:50]}..." if texto else ">>> Texto está vazio ou não fornecido.")
+    localizacoes_com_sentimento = []
+    for entidade_info in localizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        localizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
 
-        # Identificar entidades com spaCy
-        print(">>> Iniciando identificação de entidades com spaCy...")
-        doc = nlp(texto)
-        entidades = [ent.text for ent in doc.ents]
-        print(f">>> Entidades detectadas: {entidades}")
+    # Geração de resumo com BERT
+    resumo = classifier.bert_model(text)
 
-        # Instancia a classe de classificação
-        classifier = EntityClassifier(openai_client)
+    # Clustering de tópicos
+    frases = [sent.text for sent in doc.sents]
+    if len(frases) > 1:
+        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+        X = vectorizer.fit_transform(frases)
+        num_clusters = min(3, len(frases))
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+        kmeans.fit(X)
+        clusters = kmeans.labels_
 
-        # ETAPA 1) Classificação em lote (remoção de duplicadas para evitar repetição)
-        print(">>> [ETAPA 1] Iniciando classificação em lote das entidades...")
-        entidades_unicas = list(set(entidades))
-        classificacoes = classifier.classificar_em_bloco(entidades_unicas)
+        topicos = {}
+        for i, c in enumerate(clusters):
+            if c not in topicos:
+                topicos[c] = []
+            topicos[c].append(frases[i])
 
-        print(">>> [ETAPA 1] Mapeando resultados para lista final de entidades...")
-        entidades_classificadas = []
-        for ent in entidades:
-            if ent in classificacoes:
-                etype = classificacoes[ent]["tipo"]
-                elocal = classificacoes[ent]["local"]
-                entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
-            else:
-                entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
+        topicos_principais = []
+        for c in topicos:
+            centroide = np.mean(X[clusters == c], axis=0)
+            indice_representante = np.argmin(
+                np.linalg.norm(X[clusters == c] - centroide, axis=1)
+            )
+            topicos_principais.append(topicos[c][indice_representante])
+    else:
+        topicos_principais = ["Não há frases suficientes para clustering."]
 
-        # Separar entidades em pessoas/organizações e localizações
-        print(">>> Separando entidades em pessoas/organizações e localizações...")
-        pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
-        localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
-
-        print(f">>> Pessoas/Organizações: {[p['entidade'] for p in pessoas_organizacoes]}")
-        print(f">>> Localizações: {[l['entidade'] for l in localizacoes]}")
-
-        # Análise de sentimento
-        print(">>> Iniciando análise de sentimento com NLTK...")
-        pessoas_organizacoes_com_sentimento = []
-        for entidade_info in pessoas_organizacoes:
-            sentimento = sia.polarity_scores(entidade_info["entidade"])
-            pessoas_organizacoes_com_sentimento.append({
-                **entidade_info,
-                "sentimento": sentimento['compound']
-            })
-
-        localizacoes_com_sentimento = []
-        for entidade_info in localizacoes:
-            sentimento = sia.polarity_scores(entidade_info["entidade"])
-            localizacoes_com_sentimento.append({
-                **entidade_info,
-                "sentimento": sentimento['compound']
-            })
-
-        # Geração de resumo com BERT
-        print(">>> Gerando resumo com BERT Summarizer...")
-        resumo = bert_model(texto)
-
-        # Clustering de tópicos
-        print(">>> Iniciando clustering de tópicos...")
-        frases = [sent.text for sent in doc.sents]
-        if len(frases) > 1:
-            vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
-            X = vectorizer.fit_transform(frases)
-            num_clusters = min(3, len(frases))
-            kmeans = KMeans(n_clusters=num_clusters, random_state=42)
-            kmeans.fit(X)
-            clusters = kmeans.labels_
-
-            topicos = {}
-            for i, c in enumerate(clusters):
-                if c not in topicos:
-                    topicos[c] = []
-                topicos[c].append(frases[i])
-
-            topicos_principais = []
-            for c in topicos:
-                centroide = np.mean(X[clusters == c], axis=0)
-                indice_representante = np.argmin(
-                    np.linalg.norm(X[clusters == c] - centroide, axis=1)
-                )
-                topicos_principais.append(topicos[c][indice_representante])
+    # Busca de imagens para cada entidade
+    pessoas_organizacoes_com_imagens = []
+    for entidade_info in pessoas_organizacoes_com_sentimento:
+        if entidade_info["tipo"] == "pessoa":
+            image_link = classifier.buscar_imagem(entidade_info["entidade"], "pessoa")
+        elif entidade_info["tipo"] == "organização":
+            image_link = classifier.buscar_imagem(entidade_info["entidade"], "organização")
         else:
-            topicos_principais = ["Não há frases suficientes para clustering."]
+            image_link = None
+        pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
 
-        # Gera mapa com Folium
-        print(">>> Gerando mapa com Folium...")
-        mapa = folium.Map(location=[-15, -50], zoom_start=4)
+    localizacoes_com_imagens = []
+    for entidade_info in localizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem(entidade_info["entidade"], "localização")
+        localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
 
-        print(">>> Marcando localizações no mapa...")
-        for loc in localizacoes_com_sentimento:
-            coords = obter_coordenadas(loc["entidade"])
-            if coords:
-                popup_html = (
-                    f"Entidade: {loc['entidade']}<br>"
-                    f"Tipo: {loc['tipo']}<br>"
-                    f"Local Esperado: {loc['local']}<br>"
-                    f"Sentimento: {loc['sentimento']:.2f}"
-                )
-                folium.Marker(
-                    location=coords,
-                    tooltip=f"{loc['entidade']} - {loc['tipo']}",
-                    popup=popup_html,
-                    icon=folium.Icon(color="blue")
-                ).add_to(mapa)
-
-        print(">>> Salvando mapa em templates/mapa.html")
-        mapa.save("templates/mapa.html")
-
-        # ETAPA 2) Busca de imagens para cada entidade (com fallback)
-        print(">>> [ETAPA 2] Iniciando busca de imagens para pessoas/organizações e localizações...")
-        pessoas_organizacoes_com_imagens = []
-        for entidade_info in pessoas_organizacoes_com_sentimento:
-            if entidade_info["tipo"] == "pessoa":
-                image_link = classifier.buscar_imagem(entidade_info["entidade"], "pessoa")
-            elif entidade_info["tipo"] == "organização":
-                image_link = classifier.buscar_imagem(entidade_info["entidade"], "organização")
-            else:
-                image_link = None
-            pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
-
-        localizacoes_com_imagens = []
-        for entidade_info in localizacoes_com_sentimento:
-            image_link = classifier.buscar_imagem(entidade_info["entidade"], "localização")
-            localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
-
-        print(">>> Renderizando template index.html com resultados. Avisando o usuário sobre logs e possíveis erros.")
-        return render_template(
-            "index.html",
-            pessoas=pessoas_organizacoes_com_imagens,
-            localizacoes=localizacoes_com_imagens,
-            resumo=resumo,
-            topicos=topicos_principais,
-            texto=texto,
-            mapa=True
-        )
-
-    # GET
-    print(">>> Método GET acessado, retornando template inicial sem dados.")
-    return render_template(
-        "index.html",
-        pessoas=None,
-        localizacoes=None,
-        resumo=None,
-        topicos=None,
-        texto=None,
-        mapa=False
-    )
-
-
-###############################################################################
-# Rota do mapa
-###############################################################################
-@app.route("/mapa")
-def exibir_mapa():
-    print(">>> Rota /mapa acessada.")
-    return render_template("mapa.html")
-
-
-###############################################################################
-# Execução principal
-###############################################################################
-if __name__ == "__main__":
-    print(">>> Iniciando aplicação Flask em modo debug.")
-    app.run(debug=True)
+    return {
+        "pessoas": pessoas_organizacoes_com_imagens,
+        "localizacoes": localizacoes_com_imagens,
+        "resumo": resumo,
+        "topicos": topicos_principais
+    }

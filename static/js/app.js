@@ -32,11 +32,6 @@ $(document).ready(function () {
         });
     }
 
-    // Carrega a lista de timelines ao abrir a aba
-    $('#timeline-tab').on('click', function () {
-        loadTimelineList();
-    });
-
     // Função para carregar uma timeline específica
     function loadTimeline(filename) {
         $.ajax({
@@ -390,6 +385,20 @@ $(document).ready(function () {
             },
             error: function () {
                 alert("Erro ao gerar timeline. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Carregar entidades e localidades ao abrir a aba
+    $('#entities-tab').on('click', function () {
+        $.ajax({
+            url: '/entities_and_locations',
+            type: 'GET',
+            success: function (data) {
+                $('#entitiesResults').html(data);
+            },
+            error: function () {
+                alert("Erro ao carregar entidades e localidades. Verifique o servidor.");
             }
         });
     });
