@@ -14,6 +14,17 @@ from modules.goose_scraper import scrape_links
 from modules.timeline_generator import TimelineGenerator, TimelineParser
 from modules.entity_finder import EntityClassifier, process_text  # Importar funções de entity_finder
 
+# >>> IMPORTAMOS NOSSO GESTOR DE DB <<<
+from modules.db_manager import (
+    get_db_path,
+    create_db_if_not_exists,
+    insert_content_ingestao,
+    insert_link_raspado,
+    memoize_result,
+    store_memo_result,
+    list_existing_dbs
+)
+
 # Carregar variáveis de ambiente
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -32,6 +43,10 @@ UPLOAD_FOLDER = './static/generated'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Definimos a pasta onde os DBs ficarão
+DB_FOLDER = './dbs'
+os.makedirs(DB_FOLDER, exist_ok=True)
+
 # Inicializar o EntityClassifier com a chave da OpenAI
 entity_classifier = EntityClassifier(openai_api_key, serp_api_key)
 
@@ -43,7 +58,11 @@ shared_content = {
     "algorithm": None,
     "bad_links": [],
     "timeline_file": None,
-    "entities": None  # Adicionar campo para armazenar entidades
+    "entities": None,
+    "timestamp": None,
+    "counts": None,
+    # Podemos expandir para armazenar o db selecionado caso seja necessário
+    "selected_db": None
 }
 
 # Inicializar SentimentAnalyzer
@@ -51,7 +70,34 @@ sentiment_analyzer = SentimentAnalyzer(output_dir=UPLOAD_FOLDER)
 
 @app.route('/')
 def index():
+    """
+    Renderiza a página principal.
+    Deve conter as abas:
+      1) Selecionar DB
+      2) Texto via arquivo
+      3) Texto de links
+      4) Texto via extensão
+      (E as subsequentes de análise: Entidades, Timeline, Sentimentos, Representações Sociais)
+    """
     return render_template('index.html', shared_content=shared_content)
+
+# >>>>>>> NOVA ROTA: SELECIONAR DB <<<<<<<
+@app.route('/select_db', methods=['GET', 'POST'])
+def select_db():
+    """
+    Exibe a lista de DBs disponíveis no DB_FOLDER e permite a seleção de um DB para uso.
+    """
+    db_files = list_existing_dbs(DB_FOLDER)
+
+    if request.method == 'POST':
+        selected_db = request.form.get('db_name', '')
+        if selected_db and selected_db in db_files:
+            shared_content["selected_db"] = os.path.join(DB_FOLDER, selected_db)
+            return jsonify({"status": "success", "selected_db": selected_db})
+        else:
+            return jsonify({"error": "DB inválido ou inexistente"}), 400
+
+    return render_template('select_db.html', db_files=db_files)
 
 # >>>>>>> ROTAS DA INGESTÃO DE CONTEÚDOS <<<<<<<
 @app.route('/ingest_content', methods=['POST'])
@@ -72,33 +118,58 @@ def ingest_content():
     if len(sources_used) > 1:
         return jsonify({"status": "conflict", "sources": sources_used})
 
+    # Geramos um timestamp para este "envio de conteúdo"
+    analysis_ts = time.strftime('%Y%m%d_%H%M%S')
+    db_path = get_db_path(DB_FOLDER, analysis_ts)
+    create_db_if_not_exists(db_path)
+
+    final_text = ""
+    fonte_usada = ""
+
     if uploaded_file and uploaded_file.filename:
+        fonte_usada = "arquivo"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
         uploaded_file.save(filepath)
         with open(filepath, 'r', encoding='utf-8') as f:
-            shared_content["text"] = f.read()
+            final_text = f.read()
+
     elif text_input:
-        shared_content["text"] = text_input
+        fonte_usada = "texto_copiado"
+        final_text = text_input
+
     elif links_input:
+        fonte_usada = "links"
         links_list = [l.strip() for l in links_input.splitlines() if l.strip()]
         if links_list:
             try:
                 combined_text, bad_links = scrape_links(links_list)
-                shared_content["text"] = combined_text
+                final_text = combined_text
                 shared_content["bad_links"] = bad_links
             except Exception as e:
                 return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
 
+    # Guardamos no shared_content
+    shared_content["text"] = final_text
     shared_content["algorithm"] = "naive_bayes"
-    shared_content["bad_links"] = []  # Zerar a lista de links ruins caso venha de arquivo/texto
+    shared_content["bad_links"] = shared_content.get("bad_links", [])
+    shared_content["timestamp"] = analysis_ts
+
+    # Registramos no DB
+    if fonte_usada == "links":
+        for lnk in links_input.splitlines():
+            lnk = lnk.strip()
+            if lnk:
+                insert_link_raspado(db_path, lnk, final_text)
+    else:
+        insert_content_ingestao(db_path, fonte_usada, final_text)
 
     try:
-        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts_2 = sentiment_analyzer.execute_analysis_text(
             shared_content["text"]
         )
+
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
-        shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
         return jsonify({"status": "success"})
@@ -108,17 +179,22 @@ def ingest_content():
 
 @app.route('/ingest_links', methods=['POST'])
 def ingest_links():
+    """
+    Rota separada para ingestão de links, gera um DB com base no timestamp.
+    """
     global shared_content
     links_text = request.form.get('links', '')
     if not links_text.strip():
         return jsonify({"error": "Nenhum link fornecido"}), 400
 
-    # Separar links por linha ou outro delimitador desejado
     links_list = [l.strip() for l in links_text.splitlines() if l.strip()]
     if not links_list:
         return jsonify({"error": "Nenhum link válido fornecido"}), 400
 
-    # Raspagem de conteúdo usando o módulo goose_scraper
+    analysis_ts = time.strftime('%Y%m%d_%H%M%S')
+    db_path = get_db_path(DB_FOLDER, analysis_ts)
+    create_db_if_not_exists(db_path)
+
     try:
         combined_text, bad_links = scrape_links(links_list)
         shared_content["text"] = combined_text
@@ -127,20 +203,20 @@ def ingest_links():
         print(f"Erro durante raspagem de links: {e}")
         return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
 
-    # Ajuste para evitar erro 400 em /process_sentiment
-    shared_content["algorithm"] = "naive_bayes"
+    for link in links_list:
+        insert_link_raspado(db_path, link, shared_content["text"])
 
-    # Gerar conteúdo processado tal como é feito nas outras ingestões
+    shared_content["algorithm"] = "naive_bayes"
+    shared_content["timestamp"] = analysis_ts
+
     try:
-        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts_2 = sentiment_analyzer.execute_analysis_text(
             shared_content["text"]
         )
         shared_content["html_fixed"] = html_fixed
         shared_content["html_dynamic"] = html_dynamic
-        shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
-        # Retornamos também a lista de bad_links e os campos processados para o front-end
         return jsonify({
             "status": "success",
             "bad_links": bad_links,
@@ -159,20 +235,22 @@ def ingest_links():
 def reset_content():
     global shared_content
     shared_content = {
-        "text": None, 
-        "html_fixed": None, 
-        "html_dynamic": None, 
-        "algorithm": None, 
+        "text": None,
+        "html_fixed": None,
+        "html_dynamic": None,
+        "algorithm": None,
         "bad_links": [],
         "timeline_file": None,
-        "entities": None  # Resetar entidades também
+        "entities": None,
+        "timestamp": None,
+        "counts": None,
+        "selected_db": None
     }
     return jsonify({"status": "success"})
 
 # >>>>>>> ROTAS DA ANÁLISE DE SENTIMENTOS <<<<<<<
 @app.route('/process_sentiment', methods=['POST'])
 def process_sentiment():
-    """Processa a análise de sentimentos e retorna o conteúdo dinâmico gerado."""
     global shared_content
     if not shared_content.get("text"):
         return jsonify({"error": "No content provided"}), 400
@@ -180,7 +258,6 @@ def process_sentiment():
         return jsonify({"error": "No algorithm selected"}), 400
 
     try:
-        # Verifica se os conteúdos fixo e dinâmico estão disponíveis
         if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
             raise ValueError("HTML content not generated yet.")
 
@@ -198,19 +275,15 @@ def process_sentiment():
 
 @app.route('/select_algorithm_and_generate', methods=['POST'])
 def select_algorithm_and_generate():
-    """Seleciona o algoritmo e realiza a análise de sentimentos."""
     global shared_content
     algorithm = request.form.get('algorithm', None)
     if not algorithm:
         return jsonify({"error": "Nenhum algoritmo selecionado"}), 400
 
-    # Atualizar para permitir apenas o algoritmo Naive Bayes
     if algorithm != "naive_bayes":
         return jsonify({"error": "Algoritmo não suportado"}), 400
 
     shared_content["algorithm"] = algorithm
-
-    # Validação do texto
     text = shared_content.get("text")
     if not text:
         return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
@@ -229,16 +302,10 @@ def select_algorithm_and_generate():
 # >>>>>>> ROTAS DAS REPRESENTAÇÕES SOCIAIS <<<<<<<
 @app.route('/process', methods=['POST'])
 def process():
-    """
-    Rota para análise de Representação Social. 
-    A funcionalidade foi movida para a função process_representacao_social,
-    importada do script representacao_social.py.
-    """
     global shared_content
     if not shared_content["text"]:
         return jsonify({"error": "No content provided"}), 400
 
-    # Chama a função que faz todo o cálculo e retorna o HTML
     return process_representacao_social(
         shared_content["text"],
         request.form,
@@ -248,15 +315,22 @@ def process():
 # >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
 @app.route('/identify_entities', methods=['POST'])
 def identify_entities():
-    """Rota para identificar entidades e localidades, incluindo criação de mapa."""
     global shared_content
     if not shared_content.get("text"):
         return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
 
     try:
-        # Processar texto para identificar entidades e construir o mapa
-        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
-        return jsonify({"status": "success", "entities": shared_content["entities"]})
+        db_path = get_db_path(DB_FOLDER, shared_content.get("timestamp", ""))
+        existing_result = memoize_result(db_path, "entity_finder", shared_content["text"])
+        if existing_result:
+            shared_content["entities"] = existing_result
+            return jsonify({"status": "cached", "entities": existing_result})
+
+        result_obj = process_text(shared_content["text"], entity_classifier)
+        shared_content["entities"] = result_obj
+        store_memo_result(db_path, "entity_finder", shared_content["text"], str(result_obj))
+
+        return jsonify({"status": "success", "entities": result_obj})
     except Exception as e:
         print(f"Erro durante a identificação de entidades: {e}")
         return jsonify({"error": "Erro ao identificar entidades"}), 500
@@ -264,33 +338,30 @@ def identify_entities():
 # >>>>>>> ROTAS DA TIMELINE <<<<<<<
 @app.route('/generate_timeline', methods=['POST'])
 def generate_timeline():
-    """
-    Rota para gerar a timeline a partir do conteúdo de texto já ingerido.
-    """
     global shared_content
-
-    # Pega o que vier do front-end
     text = request.form.get("text", "")
-    
-    # Se vier vazio, tenta usar o que já está armazenado em shared_content
     if not text:
         text = shared_content.get("text", "")
-    
     if not text.strip():
         return jsonify({"error": "Texto não fornecido"}), 400
 
     try:
+        db_path = get_db_path(DB_FOLDER, shared_content.get("timestamp", ""))
+        existing_result = memoize_result(db_path, "timeline", text)
+        if existing_result:
+            shared_content["timeline_file"] = existing_result
+            return jsonify({"status": "cached", "timeline_file": existing_result})
+
         timeline_file = TimelineGenerator().create_timeline(text.splitlines())
         shared_content["timeline_file"] = timeline_file
+        store_memo_result(db_path, "timeline", text, timeline_file)
+
         return jsonify({"status": "success", "timeline_file": timeline_file})
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
 
 @app.route('/view_timeline', methods=['GET'])
 def view_timeline():
-    """
-    Rota para exibir a timeline gerada, retornando 'timeline.html' via JSON.
-    """
     filename = request.args.get('file')
     if not filename:
         return jsonify({"status": "error", "message": "Nome do arquivo não fornecido"}), 400
@@ -299,7 +370,6 @@ def view_timeline():
     if not os.path.isfile(timeline_file):
         return jsonify({"status": "error", "message": f"Arquivo não encontrado: {timeline_file}"}), 404
 
-    # Renderiza o template timeline.html
     html_str = render_template('timeline.html')
     return jsonify({"status": "success", "html": html_str, "filename": filename})
 
@@ -314,9 +384,6 @@ def list_timelines():
 
 @app.route('/timeline_data')
 def timeline_data():
-    """
-    Rota que parseia o arquivo .timeline e retorna os dados em JSON para o D3 desenhar.
-    """
     filename = request.args.get('file')
     if not filename:
         return jsonify({"error": "Nome do arquivo não fornecido"}), 400
@@ -333,11 +400,10 @@ def timeline_data():
         return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
 
 # >>>>>>> ROTA DO DOM <<<<<<<
-@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário
+@app.route('/api/', methods=['POST'])
 def receive_dom():
     try:
         print("API: Received a POST request")
-        # Recebe o conteúdo enviado em formato JSON
         data = request.get_json()
         print("API: JSON payload:", data)
 
@@ -352,13 +418,11 @@ def receive_dom():
             print("API: No DOM content provided")
             return jsonify({"error": "No DOM content provided"}), 400
 
-        # Apresenta o URL e o DOM recebido
         print(f"API: Received DOM from URL: {page_url}")
         print("API: Received DOM length:", len(dom_content))
         print("API: First 500 characters of DOM:")
         print(dom_content[:500])
 
-        # Retorna confirmação
         return jsonify({"status": "success", "message": "DOM received"}), 200
     except Exception as e:
         print("API: Exception occurred:", e)

@@ -29,6 +29,98 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
+    // -----------------------------
+    // 1) SELEÇÃO DE DB (ABA NOVA)
+    // -----------------------------
+    const dbSelectDropdown = $('#dbSelectDropdown');
+    const loadDbBtn = $('#loadDbBtn');
+    const dbLoadMessage = $('#dbLoadMessage');
+
+    // Função para atualizar a lista de DBs existentes
+    function refreshDbList() {
+        // Podemos criar uma rota específica para JSON, mas aqui usaremos GET em /select_db mesmo,
+        // se ele retornar HTML, poderíamos ajustar. Para evitar complicações, assumimos que
+        // existe rota /select_db que nos devolve em JSON a lista de db_files.
+        $.ajax({
+            url: '/select_db',
+            type: 'GET',
+            dataType: 'html',
+            success: function (responseHtml) {
+                /*
+                  Como /select_db normalmente renderiza um template, aqui só iremos extrair
+                  a lista de db_files caso seja devolvida. Alternativamente, poderíamos ter
+                  /list_dbs em JSON puro. Vamos simular algo minimalista:
+                */
+                try {
+                    // A ideia é que no template ou no HTML, a gente teria algo como
+                    // "data-dbfiles='["db1.db","db2.db"]'"
+                    // Se preferir, criar uma rota separada em Python.
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(responseHtml, 'text/html');
+                    // Procurar um elemento contendo data custom
+                    const dataElement = doc.querySelector('#dbFilesJson');
+                    if (dataElement) {
+                        const dbFilesList = JSON.parse(dataElement.textContent || '[]');
+                        populateDbDropdown(dbFilesList);
+                    } else {
+                        console.warn("Não foi encontrado #dbFilesJson na resposta. Ajustar rota /select_db se necessário.");
+                    }
+                } catch (err) {
+                    console.error("Erro ao parsear HTML de /select_db", err);
+                }
+            },
+            error: function () {
+                console.error("Erro ao obter lista de DBs em /select_db");
+            }
+        });
+    }
+
+    // Função auxiliar para preencher o dropdown
+    function populateDbDropdown(dbList) {
+        dbSelectDropdown.empty();
+        if (dbList && dbList.length > 0) {
+            dbList.forEach(dbFile => {
+                const option = $(`<option value="${dbFile}">${dbFile}</option>`);
+                dbSelectDropdown.append(option);
+            });
+        } else {
+            dbSelectDropdown.append('<option value="">Nenhum DB disponível</option>');
+        }
+    }
+
+    // Chamamos refreshDbList() ao carregar a página
+    refreshDbList();
+
+    // Ao clicar no botão "Carregar DB Selecionado"
+    loadDbBtn.on('click', function () {
+        const selectedDb = dbSelectDropdown.val();
+        if (!selectedDb) {
+            alert("Nenhum DB selecionado.");
+            return;
+        }
+        // Fazemos um POST para /select_db
+        $.ajax({
+            url: '/select_db',
+            type: 'POST',
+            data: { db_name: selectedDb },
+            success: function (data) {
+                if (data.status === "success") {
+                    dbLoadMessage
+                        .text(`DB "${selectedDb}" carregado com sucesso!`)
+                        .show()
+                        .fadeOut(3000);
+                }
+            },
+            error: function (xhr) {
+                const resp = xhr.responseJSON || {};
+                alert(resp.error || "Erro ao carregar DB.");
+            }
+        });
+    });
+
+    // Fim da lógica de Seleção de DB
+    // -------------------------------------
+
     // Ao mudar a seleção do dropdown, exibe a timeline correspondente
     $('#timelineDropdown').on('change', function () {
         const filename = $(this).val();
@@ -49,7 +141,7 @@ $(document).ready(function () {
                     // Chama a função para carregar os dados da timeline
                     fetchTimelineData(filename);
                 } else {
-                    alert("Erro ao carregar a timeline: " + data.error);
+                    alert("Erro ao carregar a timeline: " + (data.message || data.error));
                 }
             },
             error: function () {
@@ -195,7 +287,6 @@ $(document).ready(function () {
                     let formData = new FormData();
                     formData.append('links', linksInput);
 
-                    // Exibir mensagem de aguarde
                     const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
                     ingestContent.append(loadingMessage);
 
@@ -266,7 +357,6 @@ $(document).ready(function () {
                 let formData = new FormData();
                 formData.append('links', linksInput);
 
-                // Exibir mensagem de aguarde
                 const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
                 ingestContent.append(loadingMessage);
 
@@ -401,11 +491,30 @@ $(document).ready(function () {
             type: 'POST',
             success: function (data) {
                 if (data.status === "success") {
-                    // Atualiza o conteúdo da aba com as entidades identificadas
                     $('#entitiesResults').html(renderEntities(data.entities));
-                    // Se houver HTML do mapa, injeta no mapContainer
                     if (data.entities.map_html) {
                         $('#mapContainer').html(data.entities.map_html);
+                    }
+                } else if (data.status === "cached") {
+                    // Se veio "cached", data.entities deve ser string (ou obj).
+                    if (typeof data.entities === "string") {
+                        // Podem ter armazenado string JSON, tentamos parsear:
+                        try {
+                            let obj = JSON.parse(data.entities);
+                            $('#entitiesResults').html(renderEntities(obj));
+                            if (obj.map_html) {
+                                $('#mapContainer').html(obj.map_html);
+                            }
+                        } catch (e) {
+                            // Se não for JSON, mostramos direto
+                            $('#entitiesResults').html(`<pre>${data.entities}</pre>`);
+                        }
+                    } else {
+                        // Caso já seja objeto
+                        $('#entitiesResults').html(renderEntities(data.entities));
+                        if (data.entities.map_html) {
+                            $('#mapContainer').html(data.entities.map_html);
+                        }
                     }
                 } else {
                     alert("Erro ao identificar entidades. Verifique o servidor.");

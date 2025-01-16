@@ -19,31 +19,65 @@
     <div class="container mt-5">
         <h1 class="mb-4">Ephor - Análise de Conteúdo</h1>
 
-        <!-- Área de ingestão de texto ou visualização de conteúdo fixo -->
+        <!-- Área de ingestão de texto ou visualização de conteúdo fixo + seleção de DB -->
         <div id="ingestContent" class="mb-4">
             <form id="ingestForm">
-                <!-- Abas para escolha da fonte de texto -->
+                <!-- Abas para escolha da fonte de texto e seleção de DB -->
                 <ul class="nav nav-tabs" id="ingestTabs" role="tablist">
+
+                    <!-- NOVA ABA: SELECIONAR DB -->
                     <li class="nav-item">
-                        <button class="nav-link active" id="file-tab" data-bs-toggle="tab" data-bs-target="#fileContent" type="button" role="tab" aria-controls="fileContent" aria-selected="true">
+                        <button class="nav-link active" id="db-tab"
+                                data-bs-toggle="tab" data-bs-target="#selectDbContent"
+                                type="button" role="tab" aria-controls="selectDbContent"
+                                aria-selected="true">
+                            Selecionar DB
+                        </button>
+                    </li>
+
+                    <li class="nav-item">
+                        <button class="nav-link" id="file-tab"
+                                data-bs-toggle="tab" data-bs-target="#fileContent"
+                                type="button" role="tab" aria-controls="fileContent"
+                                aria-selected="false">
                             Texto via Arquivo
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" id="text-tab" data-bs-toggle="tab" data-bs-target="#textContent" type="button" role="tab" aria-controls="textContent" aria-selected="false">
+                        <button class="nav-link" id="text-tab"
+                                data-bs-toggle="tab" data-bs-target="#textContent"
+                                type="button" role="tab" aria-controls="textContent"
+                                aria-selected="false">
                             Texto Copiado
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" id="links-tab" data-bs-toggle="tab" data-bs-target="#linksContent" type="button" role="tab" aria-controls="linksContent" aria-selected="false">
+                        <button class="nav-link" id="links-tab"
+                                data-bs-toggle="tab" data-bs-target="#linksContent"
+                                type="button" role="tab" aria-controls="linksContent"
+                                aria-selected="false">
                             Texto de Links
                         </button>
                     </li>
                 </ul>
 
                 <div class="tab-content p-3 border border-top-0" id="ingestTabContent">
+                    <!-- NOVO CONTEÚDO: SELECIONAR DB -->
+                    <div class="tab-pane fade show active" id="selectDbContent" role="tabpanel" aria-labelledby="db-tab">
+                        <div class="mb-3">
+                            <label for="dbSelectDropdown" class="form-label">DBs Disponíveis</label>
+                            <select id="dbSelectDropdown" name="db_name" class="form-select">
+                                <!-- Carregado dinamicamente via JavaScript -->
+                            </select>
+                        </div>
+                        <button type="button" id="loadDbBtn" class="btn btn-success mt-1">
+                            Carregar DB Selecionado
+                        </button>
+                        <div id="dbLoadMessage" class="text-primary mt-3" style="display: none;"></div>
+                    </div>
+
                     <!-- Aba: Texto via Arquivo -->
-                    <div class="tab-pane fade show active" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
+                    <div class="tab-pane fade" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
                         <div class="mb-3">
                             <label for="inputFile" class="form-label">Carregar Arquivo de Texto</label>
                             <input type="file" id="inputFile" name="file" class="form-control" accept=".txt">
