@@ -1,15 +1,15 @@
-// Função para carregar a lista de timelines disponíveis (mantida)
+// /static/js/app.js
+
 function loadTimelineList() {
     $.ajax({
-        url: '/list_timelines', // Rota para listar os arquivos de timeline
+        url: '/list_timelines',
         type: 'GET',
         success: function (data) {
             const timelineDropdown = $('#timelineDropdown');
-            timelineDropdown.empty(); // Limpa o dropdown atual
-            if (data.timelines && data.timelines.length > 0) {
+            timelineDropdown.empty();
+            if (data.status === "success" && data.timelines && data.timelines.length > 0) {
                 data.timelines.forEach(timeline => {
-                    const option = $(`<option value="${timeline}">${timeline}</option>`);
-                    timelineDropdown.append(option);
+                    timelineDropdown.append(`<option value="${timeline}">${timeline}</option>`);
                 });
             } else {
                 timelineDropdown.append('<option value="">Nenhuma timeline disponível</option>');
@@ -29,36 +29,27 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
-    // -- Seleção de DB --
+    // Seleção de DB
     const dbSelectDropdown = $('#dbSelectDropdown');
     const loadDbBtn = $('#loadDbBtn');
+    const saveDbBtn = $('#saveDbBtn');
+    const deleteDbBtn = $('#deleteDbBtn');
     const dbLoadMessage = $('#dbLoadMessage');
 
-    // Componentes de LlamaIndex
+    // LlamaIndex
     const llamaQueryInput = $('#llamaQueryInput');
     const sendLlamaBtn = $('#sendLlamaBtn');
     const llamaResponses = $('#llamaResponses');
 
+    // Função para obter a lista de DBs
     function refreshDbList() {
-        // Tenta obter HTML da rota /select_db e extrair uma lista de DBs
         $.ajax({
             url: '/select_db',
             type: 'GET',
-            dataType: 'html',
-            success: function (responseHtml) {
-                try {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(responseHtml, 'text/html');
-                    const dataElement = doc.querySelector('#dbFilesJson');
-                    if (dataElement) {
-                        const dbFilesList = JSON.parse(dataElement.textContent || '[]');
-                        populateDbDropdown(dbFilesList);
-                    } else {
-                        console.warn("Não foi encontrado #dbFilesJson na resposta.");
-                    }
-                } catch (err) {
-                    console.error("Erro ao parsear HTML de /select_db", err);
-                }
+            dataType: 'json',
+            success: function (response) {
+                const dbFilesList = response.db_files || [];
+                populateDbDropdown(dbFilesList);
             },
             error: function () {
                 console.error("Erro ao obter lista de DBs em /select_db");
@@ -68,20 +59,19 @@ $(document).ready(function () {
 
     function populateDbDropdown(dbList) {
         dbSelectDropdown.empty();
-        if (dbList && dbList.length > 0) {
+        if (dbList.length > 0) {
             dbList.forEach(dbFile => {
-                const option = $(`<option value="${dbFile}">${dbFile}</option>`);
-                dbSelectDropdown.append(option);
+                dbSelectDropdown.append(`<option value="${dbFile}">${dbFile}</option>`);
             });
         } else {
             dbSelectDropdown.append('<option value="">Nenhum DB disponível</option>');
         }
     }
 
-    // Chamamos essa função para popular a lista ao iniciar
+    // Carregamos a lista de DBs ao iniciar
     refreshDbList();
 
-    // Ao clicar em "Carregar DB Selecionado"
+    // Botão "Carregar DB Selecionado"
     loadDbBtn.on('click', function () {
         const selectedDb = dbSelectDropdown.val();
         if (!selectedDb) {
@@ -94,10 +84,8 @@ $(document).ready(function () {
             data: { db_name: selectedDb },
             success: function (data) {
                 if (data.status === "success") {
-                    dbLoadMessage
-                        .text(`DB "${selectedDb}" carregado com sucesso!`)
-                        .show()
-                        .fadeOut(3000);
+                    dbLoadMessage.text(`DB "${selectedDb}" carregado com sucesso!`)
+                                 .show().fadeOut(3000);
                 }
             },
             error: function (xhr) {
@@ -107,14 +95,60 @@ $(document).ready(function () {
         });
     });
 
-    // Botão para enviar pergunta ao DB via LlamaIndex
+    // Botão "Salvar no DB"
+    saveDbBtn.on('click', function() {
+        $.ajax({
+            url: '/save_to_db',
+            type: 'POST',
+            success: function (data) {
+                if (data.status === "success") {
+                    alert("Dados salvos com sucesso!");
+                } else {
+                    alert("Não foi possível salvar no DB: " + (data.message || data.error));
+                }
+            },
+            error: function (xhr) {
+                const resp = xhr.responseJSON || {};
+                alert(resp.error || "Erro ao salvar no DB.");
+            }
+        });
+    });
+
+    // Botão "Excluir DB Selecionado"
+    deleteDbBtn.on('click', function() {
+        const selectedDb = dbSelectDropdown.val();
+        if (!selectedDb) {
+            alert("Nenhum DB selecionado para excluir.");
+            return;
+        }
+        if (!confirm(`Deseja excluir o DB "${selectedDb}"? Esta ação é irreversível.`)) {
+            return;
+        }
+        $.ajax({
+            url: '/delete_db',
+            type: 'POST',
+            data: { db_name: selectedDb },
+            success: function (data) {
+                if (data.status === "success") {
+                    alert(`DB "${selectedDb}" foi excluído.`);
+                    refreshDbList();
+                } else {
+                    alert("Erro ao excluir DB: " + (data.error || data.message));
+                }
+            },
+            error: function () {
+                alert("Erro ao excluir DB. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Perguntas via LlamaIndex (exemplo)
     sendLlamaBtn.on('click', function() {
         const question = llamaQueryInput.val().trim();
         if (!question) {
-            alert("Digite uma pergunta para prosseguir.");
+            alert("Digite uma pergunta.");
             return;
         }
-
         // Rota hipotética /llama_query
         $.ajax({
             url: '/llama_query',
@@ -131,15 +165,15 @@ $(document).ready(function () {
         });
     });
 
-    // Função para exibir pergunta e resposta no container #llamaResponses
     function appendLlamaMessage(question, answer) {
         const now = new Date().toLocaleTimeString();
-        const qHtml = `<div><strong>Pergunta [${now}]:</strong> ${question}</div>`;
-        const aHtml = `<div style="margin-left:20px;"><strong>Resposta:</strong> ${answer}</div>`;
-        llamaResponses.append(qHtml).append(aHtml).scrollTop(llamaResponses[0].scrollHeight);
+        llamaResponses.append(`
+            <div><strong>Pergunta [${now}]:</strong> ${question}</div>
+            <div style="margin-left:20px;"><strong>Resposta:</strong> ${answer}</div>
+        `).scrollTop(llamaResponses[0].scrollHeight);
     }
 
-    // Funções para Timeline (mantidas)
+    // Timeline: ao mudar o dropdown
     $('#timelineDropdown').on('change', function () {
         const filename = $(this).val();
         if (filename) {
@@ -157,11 +191,11 @@ $(document).ready(function () {
                     $('#timelineResults').html(data.html);
                     fetchTimelineData(filename);
                 } else {
-                    alert("Erro ao carregar a timeline: " + (data.message || data.error));
+                    alert("Erro ao carregar timeline: " + (data.message || data.error));
                 }
             },
             error: function () {
-                alert("Erro ao carregar a timeline. Verifique o servidor.");
+                alert("Erro ao carregar timeline. Verifique o servidor.");
             }
         });
     }
@@ -175,42 +209,41 @@ $(document).ready(function () {
                 if (data) {
                     drawTimeline(data);
                 } else {
-                    alert("Erro ao carregar os dados da timeline.");
+                    alert("Erro ao carregar dados da timeline.");
                 }
             },
-            error: function (xhr, status, error) {
-                console.error("Erro ao buscar os dados da timeline:", error);
-                alert("Erro ao buscar os dados da timeline. Verifique o servidor.");
+            error: function () {
+                alert("Erro ao buscar dados da timeline.");
             }
         });
     }
 
-    // Popup de conflito de fontes de texto
+    // Conflito de fontes
     function showSourceConflictPopup(options, onSelect) {
-        let message = '<p>Detectamos que você preencheu mais de uma fonte de texto:</p><ul>';
+        let message = '<p>Você preencheu mais de uma fonte de texto:</p><ul>';
         options.forEach(opt => {
             if (opt === 'file') message += '<li>Arquivo</li>';
             if (opt === 'text') message += '<li>Texto Copiado</li>';
             if (opt === 'links') message += '<li>Links</li>';
         });
-        message += '</ul><p>Por favor, escolha qual fonte deseja usar:</p>';
+        message += '</ul><p>Escolha qual fonte deseja usar:</p>';
 
-        let popup = $(
-            `<div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%; 
-                 transform: translate(-50%, -50%); background: white; padding: 20px; 
-                 border: 1px solid #ccc; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); 
+        const popup = $(`
+            <div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%;
+                 transform: translate(-50%, -50%); background: white; padding: 20px;
+                 border: 1px solid #ccc; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
                  z-index: 9999;">
                 <h5>Conflito de fontes de texto</h5>
                 ${message}
-            </div>`
-        );
+            </div>
+        `);
 
         options.forEach(opt => {
             let label = '';
             if (opt === 'file') label = 'Usar Arquivo';
             if (opt === 'text') label = 'Usar Texto Copiado';
             if (opt === 'links') label = 'Usar Links';
-            let btn = $(`<button class="btn btn-primary m-1">${label}</button>`);
+            const btn = $(`<button class="btn btn-primary m-1">${label}</button>`);
             btn.on('click', function () {
                 popup.remove();
                 onSelect(opt);
@@ -227,22 +260,22 @@ $(document).ready(function () {
             type: 'POST',
             success: function (data) {
                 if (data.html_fixed && data.html_dynamic) {
-                    analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
-                    timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
-                    counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                    analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto.");
+                    timestamp.html(data.html_fixed.timestamp || "");
+                    counts.html(data.html_fixed.counts || "");
                     $('#sentimentResults').html(data.html_dynamic);
                     fixedContent.removeClass('d-none');
                 } else {
-                    alert("Erro ao processar os resultados. Verifique o servidor.");
+                    alert("Erro ao processar resultados.");
                 }
             },
             error: function () {
-                alert("Erro ao processar a análise de sentimentos. Verifique o servidor.");
+                alert("Erro ao processar análise de sentimentos.");
             }
         });
     }
 
-    // Botão de Enviar Conteúdo
+    // Botão "Enviar Conteúdo"
     $('#ingestBtn').on('click', function () {
         linksErrorList.empty().hide();
 
@@ -254,11 +287,6 @@ $(document).ready(function () {
         if (fileInput) sourcesUsed.push('file');
         if (textInput) sourcesUsed.push('text');
         if (linksInput) sourcesUsed.push('links');
-
-        if (fileInput && !fileInput.endsWith('.txt')) {
-            alert('Apenas arquivos .txt são permitidos.');
-            return;
-        }
 
         if (sourcesUsed.length > 1) {
             showSourceConflictPopup(sourcesUsed, (selectedSource) => {
@@ -277,7 +305,7 @@ $(document).ready(function () {
                             processSentiment();
                         },
                         error: function () {
-                            alert("Erro ao enviar conteúdo (arquivo). Verifique o servidor.");
+                            alert("Erro ao enviar conteúdo (arquivo).");
                         }
                     });
                 } else if (selectedSource === 'text') {
@@ -294,15 +322,14 @@ $(document).ready(function () {
                             processSentiment();
                         },
                         error: function () {
-                            alert("Erro ao enviar conteúdo (texto). Verifique o servidor.");
+                            alert("Erro ao enviar conteúdo (texto).");
                         }
                     });
                 } else if (selectedSource === 'links') {
                     let formData = new FormData();
                     formData.append('links', linksInput);
-
-                    const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
-                    ingestContent.append(loadingMessage);
+                    const loadingMsg = $('<p class="text-primary">Processando links...</p>');
+                    ingestContent.append(loadingMsg);
 
                     $.ajax({
                         url: '/ingest_links',
@@ -311,29 +338,30 @@ $(document).ready(function () {
                         processData: false,
                         contentType: false,
                         success: function (data) {
-                            loadingMessage.remove();
+                            loadingMsg.remove();
                             ingestContent.addClass('d-none');
                             if (data.html_fixed) {
-                                analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
-                                timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
-                                counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                                analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
+                                timestamp.html(data.html_fixed.timestamp || "");
+                                counts.html(data.html_fixed.counts || "");
                             }
                             if (data.bad_links && data.bad_links.length > 0) {
                                 linksErrorList.html(
-                                    "<strong>Links com falha ou sem conteúdo:</strong><br>" +
+                                    "<strong>Links com falha:</strong><br>" +
                                     data.bad_links.join("<br>")
                                 ).show();
                             }
                             fixedContent.removeClass('d-none');
                         },
                         error: function () {
-                            loadingMessage.remove();
-                            alert("Erro ao enviar conteúdo (links). Verifique o servidor.");
+                            loadingMsg.remove();
+                            alert("Erro ao enviar conteúdo (links).");
                         }
                     });
                 }
             });
         } else {
+            // Sem conflito
             if (fileInput) {
                 let formData = new FormData($('#ingestForm')[0]);
                 $.ajax({
@@ -347,7 +375,7 @@ $(document).ready(function () {
                         processSentiment();
                     },
                     error: function () {
-                        alert("Erro ao enviar conteúdo (arquivo). Verifique o servidor.");
+                        alert("Erro ao enviar conteúdo (arquivo).");
                     }
                 });
             } else if (textInput) {
@@ -364,15 +392,14 @@ $(document).ready(function () {
                         processSentiment();
                     },
                     error: function () {
-                        alert("Erro ao enviar conteúdo (texto). Verifique o servidor.");
+                        alert("Erro ao enviar conteúdo (texto).");
                     }
                 });
             } else if (linksInput) {
                 let formData = new FormData();
                 formData.append('links', linksInput);
-
-                const loadingMessage = $('<p class="text-primary">Aguarde enquanto processamos os links...</p>');
-                ingestContent.append(loadingMessage);
+                const loadingMsg = $('<p class="text-primary">Processando links...</p>');
+                ingestContent.append(loadingMsg);
 
                 $.ajax({
                     url: '/ingest_links',
@@ -381,24 +408,24 @@ $(document).ready(function () {
                     processData: false,
                     contentType: false,
                     success: function (data) {
-                        loadingMessage.remove();
+                        loadingMsg.remove();
                         ingestContent.addClass('d-none');
                         if (data.html_fixed) {
-                            analyzedText.html(data.html_fixed.analyzedText || "Erro ao carregar texto analisado.");
-                            timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
-                            counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
+                            analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
+                            timestamp.html(data.html_fixed.timestamp || "");
+                            counts.html(data.html_fixed.counts || "");
                         }
                         if (data.bad_links && data.bad_links.length > 0) {
                             linksErrorList.html(
-                                "<strong>Links com falha ou sem conteúdo:</strong><br>" +
+                                "<strong>Links com falha:</strong><br>" +
                                 data.bad_links.join("<br>")
                             ).show();
                         }
                         fixedContent.removeClass('d-none');
                     },
                     error: function () {
-                        loadingMessage.remove();
-                        alert("Erro ao enviar conteúdo (links). Verifique o servidor.");
+                        loadingMsg.remove();
+                        alert("Erro ao enviar conteúdo (links).");
                     }
                 });
             } else {
@@ -407,7 +434,7 @@ $(document).ready(function () {
         }
     });
 
-    // Botão de Reset
+    // Botão Reset
     $('#resetBtn').on('click', function () {
         $.post('/reset_content', function () {
             fixedContent.addClass('d-none');
@@ -419,7 +446,7 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Análise de Representação Social
+    // Botão de Representação Social
     $('#contentBtn').on('click', function () {
         const formData = new FormData($('#contentForm')[0]);
         $.ajax({
@@ -428,26 +455,30 @@ $(document).ready(function () {
             data: formData,
             processData: false,
             contentType: false,
-            success: function (data) {
-                $('#contentResults').html(data.html);
-                $('#contentResults table').each(function () {
-                    const columnCount = $(this).find('thead th').length;
-                    if (columnCount > 0) {
-                        $(this).DataTable({
-                            paging: false,
-                            info: false,
-                            searching: false
-                        });
-                    }
-                });
+            success: function (resp) {
+                if (typeof resp === 'object' && resp.html) {
+                    $('#contentResults').html(resp.html);
+                    $('#contentResults table').each(function () {
+                        const colCount = $(this).find('thead th').length;
+                        if (colCount > 0) {
+                            $(this).DataTable({
+                                paging: false,
+                                info: false,
+                                searching: false
+                            });
+                        }
+                    });
+                } else {
+                    alert("Retorno inesperado da representação social.");
+                }
             },
             error: function () {
-                alert("Erro ao processar representação social. Verifique o servidor.");
+                alert("Erro ao processar representação social.");
             }
         });
     });
 
-    // Botão de Análise de Sentimentos
+    // Botão de Sentimentos
     $('#sentimentBtn').on('click', function () {
         const formData = new FormData($('#sentimentForm')[0]);
         $.ajax({
@@ -461,39 +492,36 @@ $(document).ready(function () {
                     url: '/process_sentiment',
                     type: 'POST',
                     success: function (data) {
-                        $('#sentimentResults').html(data.html_dynamic);
+                        $('#sentimentResults').html(data.html_dynamic || "");
                     },
                     error: function () {
-                        alert("Erro ao processar a análise de sentimentos. Verifique o servidor.");
+                        alert("Erro ao processar análise de sentimentos.");
                     }
                 });
             },
             error: function () {
-                alert("Erro ao selecionar o algoritmo. Verifique o servidor.");
+                alert("Erro ao selecionar algoritmo.");
             }
         });
     });
 
-    // Botão de Geração de Timeline
+    // Botão de Timeline
     $('#timelineBtn').on('click', function () {
         const textInput = $('#inputText').val().trim();
-
         $.ajax({
             url: '/generate_timeline',
             type: 'POST',
             data: { text: textInput },
             success: function (data) {
-                if (data.status === "success") {
-                    // Carrega a timeline gerada
+                if (data.status === "success" || data.status === "cached") {
                     loadTimeline(data.timeline_file);
-                    // Atualiza a lista de timelines
                     loadTimelineList();
                 } else {
-                    alert("Falha na geração da timeline: " + data.error);
+                    alert("Falha na geração da timeline: " + (data.error || data.message));
                 }
             },
             error: function () {
-                alert("Erro ao gerar timeline. Verifique o servidor.");
+                alert("Erro ao gerar timeline.");
             }
         });
     });
@@ -527,22 +555,21 @@ $(document).ready(function () {
                         }
                     }
                 } else {
-                    alert("Erro ao identificar entidades. Verifique o servidor.");
+                    alert("Erro ao identificar entidades.");
                 }
             },
             error: function () {
-                alert("Erro ao identificar entidades. Verifique o servidor.");
+                alert("Erro ao identificar entidades.");
             }
         });
     });
 
-    // Função para renderizar as entidades identificadas
     function renderEntities(entities) {
         let html = '<div class="coluna">';
         if (entities.topicos && entities.topicos.length > 0) {
             html += '<h2>Tópicos Principais:</h2><ul>';
-            entities.topicos.forEach(topico => {
-                html += `<li>${topico}</li>`;
+            entities.topicos.forEach(top => {
+                html += `<li>${top}</li>`;
             });
             html += '</ul>';
         }
@@ -559,7 +586,8 @@ $(document).ready(function () {
                             ${pessoa.sentimento > 0.05 ? '😊' : pessoa.sentimento < -0.05 ? '😠' : '😐'}
                         </span>
                         ${pessoa.imagem ? `<img src="${pessoa.imagem}" alt="${pessoa.entidade}" class="imagem-miniatura">` : ''}
-                    </li>`;
+                    </li>
+                `;
             });
             html += '</ul>';
         }
@@ -573,7 +601,8 @@ $(document).ready(function () {
                             ${loc.sentimento > 0.05 ? '😊' : loc.sentimento < -0.05 ? '😠' : '😐'}
                         </span>
                         ${loc.imagem ? `<img src="${loc.imagem}" alt="${loc.entidade}" class="imagem-miniatura">` : ''}
-                    </li>`;
+                    </li>
+                `;
             });
             html += '</ul>';
         }
@@ -590,11 +619,11 @@ $(document).ready(function () {
                 if (data.html) {
                     $('#cenariosResults').html(data.html);
                 } else {
-                    alert("Não foi possível gerar cenários. Verifique o servidor.");
+                    alert("Não foi possível gerar cenários.");
                 }
             },
             error: function () {
-                alert("Erro ao gerar cenários. Verifique o servidor.");
+                alert("Erro ao gerar cenários.");
             }
         });
     });
