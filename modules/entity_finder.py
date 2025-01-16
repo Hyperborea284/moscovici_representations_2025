@@ -16,16 +16,17 @@ from openai import OpenAI
 class EntityClassifier:
     """
     Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
-    e de busca de imagem (etapa 2), incluindo fallback na SerpAPI caso a OpenAI
-    não retorne uma imagem.
+    e de busca de imagem (etapa 2), utilizando a SerpAPI como abordagem principal.
     """
-
-    def __init__(self, openai_api_key):
+    def __init__(self, openai_api_key, serp_api_key):
         self.openai_client = OpenAI(api_key=openai_api_key)
         self.nlp = spacy.load("pt_core_news_sm")
         self.bert_model = Summarizer()
         self.sia = SentimentIntensityAnalyzer()
         self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
+        self.serp_api_key = serp_api_key
+        # Cache para imagens e evitar múltiplas chamadas duplicadas
+        self._image_cache = {}
 
     def classificar_em_bloco(self, entidades_unicas):
         """
@@ -38,7 +39,9 @@ class EntityClassifier:
             # Prompt que enfatiza a unicidade das entidades
             prompt_str = """
             Você receberá uma lista de entidades (pessoas, organizações ou localizações).
-            1) NÃO retorne duplicados. Cada entidade só deve aparecer uma única vez.
+            Sintetize estas de maneira a eliminar duplicidades, verifique cada elemento, 
+            identifique se este se trata de uma pessoa, organização ou localização e categorize-as.
+            1) NÃO retorne entidades duplicadas. Cada entidade só pode aparecer uma única vez.
             2) Responda estritamente em JSON, no formato:
             {
                 "resultado": [
@@ -46,7 +49,8 @@ class EntityClassifier:
                     ...
                 ]
             }
-            Liste todas as entidades de entrada, garantindo que cada uma apareça exatamente uma vez no array 'resultado'.
+            Analise todas as entidades de entrada, garantindo a unicidade e se assegurando de 
+            que cada uma apareça exatamente uma vez no array 'resultado', associada à sua respectiva categorização.
             """
 
             prompt_entidades = "Lista de entidades:\n" + "\n".join([f"- {e}" for e in entidades_unicas])
@@ -88,71 +92,55 @@ class EntityClassifier:
             print(f"Erro na classificação em bloco: {e}")
             return {}
 
-    def buscar_imagem(self, query, tipo):
-        """
-        Tenta obter um link de imagem da OpenAI (etapa 2). Em caso de falha ou erro
-        no conteúdo retornado, faz o fallback para a SerpAPI.
-        """
-        print(f">>> [ETAPA 2] buscar_imagem: Buscando imagem para '{query}' como '{tipo}' usando GPT-4...")
-        try:
-            prompt = f"""
-            Você é um sistema que retorna links de imagens.
-            Entrada: '{query}' (tipo: {tipo})
-            Retorne estritamente em JSON, no formato:
-            {{
-                "imagem_url": "https://exemplo-de-imagem.jpg"
-            }}
-            Dê preferência a links representativos e recentes.
-            """
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            conteudo = response.choices[0].message.content
-            print("\n--- Resposta da API (etapa 2) ---")
-            print(conteudo)
-
-            data = json.loads(conteudo)
-            imagem_url = data.get("imagem_url", None)
-            if not imagem_url or not imagem_url.startswith("http"):
-                print(f">>> [ETAPA 2] buscar_imagem: Nenhum link válido via OpenAI; fallback para SerpAPI.")
-                return self.buscar_imagem_serpapi(query, tipo)
-
-            print(f">>> [ETAPA 2] buscar_imagem: Link retornado para '{query}': {imagem_url}")
-            return imagem_url
-
-        except Exception as e:
-            print(f"Erro ao buscar imagem pela OpenAI: {e}")
-            print(">>> [ETAPA 2] buscando imagem pela SerpAPI como fallback.")
-            return self.buscar_imagem_serpapi(query, tipo)
-
     def buscar_imagem_serpapi(self, query, tipo):
         """
-        Fallback para busca de imagem na SerpAPI.
+        Busca de imagem na SerpAPI, com cache interno e fallback para placeholder.
         """
-        print(f">>> [FALLBACK] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
+        # Se já existe em cache, retorna diretamente
+        if query in self._image_cache:
+            return self._image_cache[query]
+
+        print(f">>> [ETAPA 2] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
         try:
             params = {
                 "q": f"{query} {tipo}",
                 "tbm": "isch",
-                "api_key": "sua_chave_serpapi_aqui"
+                "api_key": self.serp_api_key
             }
             response = requests.get("https://serpapi.com/search", params=params)
             if response.status_code == 200:
                 results = response.json()
                 if "images_results" in results and len(results["images_results"]) > 0:
                     first_thumb = results["images_results"][0]["thumbnail"]
-                    print(f">>> [FALLBACK] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
+                    print(f">>> [ETAPA 2] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
+                    self._image_cache[query] = first_thumb
                     return first_thumb
-            print(f">>> [FALLBACK] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
-            return None
+            print(f">>> [ETAPA 2] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
+            # Se não encontrou nada, retorna placeholder
+            self._image_cache[query] = "/static/img/placeholder.png"
+            return self._image_cache[query]
         except Exception as e:
             print(f"Erro na SerpAPI: {e}")
-            return None
+            # Em caso de exceção, retorna placeholder
+            self._image_cache[query] = "/static/img/placeholder.png"
+            return self._image_cache[query]
+
+def geocode_location(geolocator, query):
+    """Tenta geocodar o texto 'query' e retorna (lat, lon) ou None."""
+    try:
+        location = geolocator.geocode(query)
+        # Aguardar um pouco para evitar limite de requisições consecutivas
+        time.sleep(0.7)
+        if location:
+            return (location.latitude, location.longitude)
+    except (GeocoderTimedOut, GeocoderServiceError):
+        pass
+    return None
 
 def process_text(text, classifier):
     """
     Processa o texto para identificar entidades, sumarizar e gerar tópicos.
+    Também gera um mapa Folium com base nas entidades localizadas.
     """
     print(">>> Iniciando processamento de texto...")
     doc = classifier.nlp(text)
@@ -225,22 +213,38 @@ def process_text(text, classifier):
     # Busca de imagens para cada entidade
     pessoas_organizacoes_com_imagens = []
     for entidade_info in pessoas_organizacoes_com_sentimento:
-        if entidade_info["tipo"] == "pessoa":
-            image_link = classifier.buscar_imagem(entidade_info["entidade"], "pessoa")
-        elif entidade_info["tipo"] == "organização":
-            image_link = classifier.buscar_imagem(entidade_info["entidade"], "organização")
-        else:
-            image_link = None
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], entidade_info["tipo"])
         pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
 
     localizacoes_com_imagens = []
     for entidade_info in localizacoes_com_sentimento:
-        image_link = classifier.buscar_imagem(entidade_info["entidade"], "localização")
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], "localização")
         localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    # >>> Construir mapa dinamicamente via Folium <<<
+    # Posição inicial "genérica" centrada no Brasil
+    mapa = folium.Map(location=[-15.0, -50.0], zoom_start=4)
+    # Para cada local, tentar geocodar e adicionar marker
+    for loc in localizacoes_com_imagens:
+        coords = geocode_location(classifier.geolocator, loc["entidade"])
+        if coords:
+            popup_str = (f"Entidade: {loc['entidade']}<br>"
+                         f"Tipo: {loc['tipo']}<br>"
+                         f"Local Esperado: {loc['local']}<br>"
+                         f"Sentimento: {loc['sentimento']:.2f}")
+            folium.Marker(
+                location=coords,
+                popup=popup_str,
+                tooltip=f"{loc['entidade']} - {loc['tipo']}"
+            ).add_to(mapa)
+
+    # Gera HTML do mapa para embutir no front-end
+    map_html = mapa._repr_html_()
 
     return {
         "pessoas": pessoas_organizacoes_com_imagens,
         "localizacoes": localizacoes_com_imagens,
         "resumo": resumo,
-        "topicos": topicos_principais
+        "topicos": topicos_principais,
+        "map_html": map_html  # HTML do mapa gerado
     }

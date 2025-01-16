@@ -14,5 +14,4 @@ scikit_learn==1.6.1
 scipy==1.15.1
 seaborn==0.13.2
 spacy==3.8.3
-
 torch==2.3.1

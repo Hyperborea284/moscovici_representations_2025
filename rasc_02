@@ -1,0 +1,1732 @@
+Partindo destes codigos, esta aplicaçao web a qual realiza diversas análises em um corpus de texto; esta possui quatro abas, cada uma associada à um mecanismo de análise de conteúdos (Entidades e Localidades, Geração de timeline, Análise de sentimentos e Representações Sociais), sendo estes textos inseridos na aplicação por três mecanismos (Texto copiado, texto raspado de links e arquivo txt), os quais pode montar um corpus unificado de textoe apresentar este conteúdo indexado e com uma timestamp; estas funcionalidades não devem ser removidas, alteradas, omitidas, sendo preservadas à todo custo, de maneira cumulativa e convergente.
+
+Preserve ipsis litteris as partes não afetadas diretamente pelas alterações, não desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes propostas. No case específico, para evitar alterar todos os códigos, crie uma função de memoização para envelopar os scripts, classes e funçoes, enquanto são ativados.
+
+Garanta a aplicação convergente e cumulativa dos elementos estétitcos, funcionais e estilisticos do projeto original.
+
+Preserve todas as caracteristicas, de maneira cumulativa e convergente. Preserve ipsis litteris as partes na afetadas diretamente pela alteraçao, nao desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes. Apresente a versão completa e corrigida dos códigos convergentes, contendo as alterações cumulativas.
+
+Cada ativação do mecanismo de ingestão de texto, ao se clicar no botão enviar conteúdo, deve gerar um db com as tabelas seguintes, nomeado com a timestamp onde deve ser indicado o mecanismo de ingestão de texto, o conteúdo destes, podendo ser uma mistura de mais de uma fonte, e o hash destes. No caso específico dos links, estes devem constar numa tabela à parte, com seu conteúdo raspado e hash do texto específico.
+
+Considere estes arquivos no backend de uma aplicação flask; cada um destes, em cada processamento que gere um objeto relevante, seja este inserido, por um mecanismo de ingestão ou gerado por um processamento que fez uma heurística deste conteúdo, estes todos devem ser registrados num db sqlite. Objetos como chamados às apis, e retorno das apis devem ser associados à um hash, onde ocorrerá a verificação do chamado e, se este já estiver no db, o conteúdo do db deve ser retornado, evitando a ativação desnecessária. Os objetos retornados pelos processamentos de
+entidades, localidades, tópicos, resumos, sendo estes quatro vindos de entity_finder.py, devem estar na tabela entity_finder;
+os objetos vindos da geração de timeline, i.e. o prompt e o xml retornado, devem ser registrados na tabela timeline; o caminho para os gráficos de sentimentos,deve estar na tabela analise_sentimentos e os gráficos das representações sociais, assim como os dado associados às tabelas respectivasno html, devem estar na tabela representacoes_sociais no db.
+
+
+Este db, caso o db não exista, este deve ser criado e deve ter como nome, a timestamp da ativação do botão 'Enviar conteúdo', neste serão salvas estas informações geradas e, quando ativações envolvendo este conteúdo, deve ser consultado o db usando um mecanismo de memoização via hash, para se verificar a existência do conteúdo no db, dos conteúdos; logo, daqui se deduz, que tudo registrado no db, terá seu conteúdo registrado numa coluna, onde cada registro será seguido do respectivo hash, na coluna seguinte.
+
+Caso algo relevante não tenha sido descrito aqui, gere uma tabela associada com cada um destes scripts, onde cada conteúdo relevante gerado ativação do script será memoizado.
+
+Gere uma tabela para os conteúdos ingeridos, seja por link raspado, texto copiado, texto inserido, sempre associado aorespectivos hashes.
+
+Gere um script em python para lidar com todas as operações de db, o qual será importado pelos scripts adiante.
+
+Gere uma aba, de nome 'Selecionar DB' a qual varrerá apasta onde os dbs são estocados e permitirá o carregamento destes, mostrando num menu drop, quais dbs estão disponíveis para carregamento. Esta aba se situará antes das abas nos mecanismos de ingestão, estes à partir de agora, terão a seguinte organização:
+
+1)Selecionar DB; nesta visualização, deverá haver uma ativação local, interativa, em tempo real, do llama index para que o usuário possa comunicar em linguagem natural com o conteúdo do db.
+2)Texto via arquivo
+3)Texto de links
+4)Texto via extensão, onde será dinâmicamente apresentado o conteúdo retornado da ativação da api que raspa o DOM, esta funcionalidade será expandida em alterações futuras.
+
+Ademais, em entity_finder.py deve-se incorporar a api https://serpapi.com/google-news-api + story_token Para robustecer a geração de contexto, com base nas informações de resumo e tópicos gerados localmente.
+
+O objeto shared_content em app.py pode ser expandido para incluir chamadas ao db.
+
+No final, a funcionalidade pretendida é o registro e verificação do registro via memoização capaz de gerar reativações sem processamento e chamados desnecessários às apis.
+
+app.py
+from flask import Flask, request, render_template, jsonify
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import os
+import time
+import sys
+from dotenv import load_dotenv
+
+from modules.sent_bayes import SentimentAnalyzer
+from modules.representacao_social import process_representacao_social
+from modules.goose_scraper import scrape_links
+from modules.timeline_generator import TimelineGenerator, TimelineParser
+from modules.entity_finder import EntityClassifier, process_text  # Importar funções de entity_finder
+
+# Carregar variáveis de ambiente
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
+serp_api_key = os.getenv("SERP_API_KEY")
+if not serp_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
+# Inicializar o Flask
+app = Flask(__name__)
+
+# Configuração da pasta de upload
+UPLOAD_FOLDER = './static/generated'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Inicializar o EntityClassifier com a chave da OpenAI
+entity_classifier = EntityClassifier(openai_api_key, serp_api_key)
+
+# Variável global para armazenar conteúdo compartilhado
+shared_content = {
+    "text": None,
+    "html_fixed": None,
+    "html_dynamic": None,
+    "algorithm": None,
+    "bad_links": [],
+    "timeline_file": None,
+    "entities": None  # Adicionar campo para armazenar entidades
+}
+
+# Inicializar SentimentAnalyzer
+sentiment_analyzer = SentimentAnalyzer(output_dir=UPLOAD_FOLDER)
+
+@app.route('/')
+def index():
+    return render_template('index.html', shared_content=shared_content)
+
+# >>>>>>> ROTAS DA INGESTÃO DE CONTEÚDOS <<<<<<<
+@app.route('/ingest_content', methods=['POST'])
+def ingest_content():
+    global shared_content
+    uploaded_file = request.files.get('file')
+    text_input = request.form.get('text', '').strip()
+    links_input = request.form.get('links', '').strip()
+
+    sources_used = []
+    if uploaded_file and uploaded_file.filename:
+        sources_used.append('file')
+    if text_input:
+        sources_used.append('text')
+    if links_input:
+        sources_used.append('links')
+
+    if len(sources_used) > 1:
+        return jsonify({"status": "conflict", "sources": sources_used})
+
+    if uploaded_file and uploaded_file.filename:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_file.filename)
+        uploaded_file.save(filepath)
+        with open(filepath, 'r', encoding='utf-8') as f:
+            shared_content["text"] = f.read()
+    elif text_input:
+        shared_content["text"] = text_input
+    elif links_input:
+        links_list = [l.strip() for l in links_input.splitlines() if l.strip()]
+        if links_list:
+            try:
+                combined_text, bad_links = scrape_links(links_list)
+                shared_content["text"] = combined_text
+                shared_content["bad_links"] = bad_links
+            except Exception as e:
+                return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
+
+    shared_content["algorithm"] = "naive_bayes"
+    shared_content["bad_links"] = []  # Zerar a lista de links ruins caso venha de arquivo/texto
+
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+            shared_content["text"]
+        )
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Erro durante a ingestão de conteúdo: {e}")
+        return jsonify({"error": "Erro ao processar o conteúdo"}), 500
+
+@app.route('/ingest_links', methods=['POST'])
+def ingest_links():
+    global shared_content
+    links_text = request.form.get('links', '')
+    if not links_text.strip():
+        return jsonify({"error": "Nenhum link fornecido"}), 400
+
+    # Separar links por linha ou outro delimitador desejado
+    links_list = [l.strip() for l in links_text.splitlines() if l.strip()]
+    if not links_list:
+        return jsonify({"error": "Nenhum link válido fornecido"}), 400
+
+    # Raspagem de conteúdo usando o módulo goose_scraper
+    try:
+        combined_text, bad_links = scrape_links(links_list)
+        shared_content["text"] = combined_text
+        shared_content["bad_links"] = bad_links
+    except Exception as e:
+        print(f"Erro durante raspagem de links: {e}")
+        return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
+
+    # Ajuste para evitar erro 400 em /process_sentiment
+    shared_content["algorithm"] = "naive_bayes"
+
+    # Gerar conteúdo processado tal como é feito nas outras ingestões
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(
+            shared_content["text"]
+        )
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        # Retornamos também a lista de bad_links e os campos processados para o front-end
+        return jsonify({
+            "status": "success",
+            "bad_links": bad_links,
+            "html_fixed": {
+                "analyzedText": html_fixed,
+                "timestamp": analysis_ts,
+                "counts": f"Parágrafos: {num_pars}, Frases: {num_sents}",
+            },
+            "html_dynamic": html_dynamic
+        })
+    except Exception as e:
+        print(f"Erro durante a ingestão de conteúdo via links: {e}")
+        return jsonify({"error": "Erro ao processar o conteúdo"}), 500
+
+@app.route('/reset_content', methods=['POST'])
+def reset_content():
+    global shared_content
+    shared_content = {
+        "text": None, 
+        "html_fixed": None, 
+        "html_dynamic": None, 
+        "algorithm": None, 
+        "bad_links": [],
+        "timeline_file": None,
+        "entities": None  # Resetar entidades também
+    }
+    return jsonify({"status": "success"})
+
+# >>>>>>> ROTAS DA ANÁLISE DE SENTIMENTOS <<<<<<<
+@app.route('/process_sentiment', methods=['POST'])
+def process_sentiment():
+    """Processa a análise de sentimentos e retorna o conteúdo dinâmico gerado."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "No content provided"}), 400
+    if not shared_content.get("algorithm"):
+        return jsonify({"error": "No algorithm selected"}), 400
+
+    try:
+        # Verifica se os conteúdos fixo e dinâmico estão disponíveis
+        if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
+            raise ValueError("HTML content not generated yet.")
+
+        return jsonify({
+            "html_fixed": {
+                "analyzedText": shared_content["html_fixed"],
+                "timestamp": shared_content.get("timestamp", ""),
+                "counts": shared_content.get("counts", ""),
+            },
+            "html_dynamic": shared_content["html_dynamic"]
+        })
+    except Exception as e:
+        app.logger.error(f"Error processing sentiment analysis: {e}")
+        return jsonify({"error": f"Processing error: {e}"}), 500
+
+@app.route('/select_algorithm_and_generate', methods=['POST'])
+def select_algorithm_and_generate():
+    """Seleciona o algoritmo e realiza a análise de sentimentos."""
+    global shared_content
+    algorithm = request.form.get('algorithm', None)
+    if not algorithm:
+        return jsonify({"error": "Nenhum algoritmo selecionado"}), 400
+
+    # Atualizar para permitir apenas o algoritmo Naive Bayes
+    if algorithm != "naive_bayes":
+        return jsonify({"error": "Algoritmo não suportado"}), 400
+
+    shared_content["algorithm"] = algorithm
+
+    # Validação do texto
+    text = shared_content.get("text")
+    if not text:
+        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
+
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(text)
+        shared_content["html_fixed"] = html_fixed
+        shared_content["html_dynamic"] = html_dynamic
+        shared_content["timestamp"] = analysis_ts
+        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+
+        return jsonify({"status": "Análise concluída"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+# >>>>>>> ROTAS DAS REPRESENTAÇÕES SOCIAIS <<<<<<<
+@app.route('/process', methods=['POST'])
+def process():
+    """
+    Rota para análise de Representação Social. 
+    A funcionalidade foi movida para a função process_representacao_social,
+    importada do script representacao_social.py.
+    """
+    global shared_content
+    if not shared_content["text"]:
+        return jsonify({"error": "No content provided"}), 400
+
+    # Chama a função que faz todo o cálculo e retorna o HTML
+    return process_representacao_social(
+        shared_content["text"],
+        request.form,
+        app.config['UPLOAD_FOLDER']
+    )
+
+# >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
+@app.route('/identify_entities', methods=['POST'])
+def identify_entities():
+    """Rota para identificar entidades e localidades, incluindo criação de mapa."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
+
+    try:
+        # Processar texto para identificar entidades e construir o mapa
+        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
+        return jsonify({"status": "success", "entities": shared_content["entities"]})
+    except Exception as e:
+        print(f"Erro durante a identificação de entidades: {e}")
+        return jsonify({"error": "Erro ao identificar entidades"}), 500
+
+# >>>>>>> ROTAS DA TIMELINE <<<<<<<
+@app.route('/generate_timeline', methods=['POST'])
+def generate_timeline():
+    """
+    Rota para gerar a timeline a partir do conteúdo de texto já ingerido.
+    """
+    global shared_content
+
+    # Pega o que vier do front-end
+    text = request.form.get("text", "")
+    
+    # Se vier vazio, tenta usar o que já está armazenado em shared_content
+    if not text:
+        text = shared_content.get("text", "")
+    
+    if not text.strip():
+        return jsonify({"error": "Texto não fornecido"}), 400
+
+    try:
+        timeline_file = TimelineGenerator().create_timeline(text.splitlines())
+        shared_content["timeline_file"] = timeline_file
+        return jsonify({"status": "success", "timeline_file": timeline_file})
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar timeline: {str(e)}"}), 500
+
+@app.route('/view_timeline', methods=['GET'])
+def view_timeline():
+    """
+    Rota para exibir a timeline gerada, retornando 'timeline.html' via JSON.
+    """
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"status": "error", "message": "Nome do arquivo não fornecido"}), 400
+
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
+    if not os.path.isfile(timeline_file):
+        return jsonify({"status": "error", "message": f"Arquivo não encontrado: {timeline_file}"}), 404
+
+    # Renderiza o template timeline.html
+    html_str = render_template('timeline.html')
+    return jsonify({"status": "success", "html": html_str, "filename": filename})
+
+@app.route('/list_timelines')
+def list_timelines():
+    timeline_dir = "static/generated/timeline_output"
+    try:
+        timelines = [f for f in os.listdir(timeline_dir) if f.endswith('.timeline')]
+        return jsonify({"status": "success", "timelines": timelines})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/timeline_data')
+def timeline_data():
+    """
+    Rota que parseia o arquivo .timeline e retorna os dados em JSON para o D3 desenhar.
+    """
+    filename = request.args.get('file')
+    if not filename:
+        return jsonify({"error": "Nome do arquivo não fornecido"}), 400
+
+    timeline_file = os.path.join("static/generated/timeline_output", filename)
+    if not os.path.isfile(timeline_file):
+        return jsonify({"error": f"Arquivo não encontrado: {timeline_file}"}), 404
+
+    parser = TimelineParser()
+    try:
+        data = parser.parse_timeline_xml(timeline_file)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
+
+# >>>>>>> ROTA DO DOM <<<<<<<
+@app.route('/api/', methods=['POST'])  # Altere 'api' para 'app' se necessário
+def receive_dom():
+    try:
+        print("API: Received a POST request")
+        # Recebe o conteúdo enviado em formato JSON
+        data = request.get_json()
+        print("API: JSON payload:", data)
+
+        if not data:
+            print("API: No JSON data received")
+            return jsonify({"error": "No JSON data received"}), 400
+
+        dom_content = data.get("dom", "")
+        page_url = data.get("url", "Unknown URL")
+
+        if not dom_content:
+            print("API: No DOM content provided")
+            return jsonify({"error": "No DOM content provided"}), 400
+
+        # Apresenta o URL e o DOM recebido
+        print(f"API: Received DOM from URL: {page_url}")
+        print("API: Received DOM length:", len(dom_content))
+        print("API: First 500 characters of DOM:")
+        print(dom_content[:500])
+
+        # Retorna confirmação
+        return jsonify({"status": "success", "message": "DOM received"}), 200
+    except Exception as e:
+        print("API: Exception occurred:", e)
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    print(">>> Iniciando aplicação Flask em modo debug.")
+    app.run(debug=True)
+
+
+dist_normal.py
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm, kurtosis, skew, shapiro
+import seaborn as sns
+
+# Função para analisar os dados e determinar a natureza predominante
+def analyze_data(data):
+    kurt = kurtosis(data, fisher=False)
+    skewness = skew(data)
+
+    if kurt > 3 and skewness > 0:
+        return "Leptocúrtica com Concentração em Sigmas Positivos"
+    elif kurt > 3 and skewness < 0:
+        return "Leptocúrtica com Concentração em Sigmas Negativos"
+    elif kurt > 3:
+        return "Leptocúrtica Neutra"
+    elif kurt < 3 and skewness > 0:
+        return "Platocúrtica com Concentração em Sigmas Positivos"
+    elif kurt < 3 and skewness < 0:
+        return "Platocúrtica com Concentração em Sigmas Negativos"
+    else:
+        return "Platocúrtica Neutra"
+
+# Função para identificar outliers usando o método do intervalo interquartil (IQR)
+def detect_outliers(data):
+    # Converte data para um array NumPy caso ainda não seja
+    data = np.asarray(data)  # Assegura que `data` é um array NumPy
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    # Corrige a operação de filtragem usando máscaras booleanas NumPy
+    outliers = data[(data < lower_bound) | (data > upper_bound)]
+    return outliers, lower_bound, upper_bound
+
+# Função para normalizar os dados centrando em torno da média
+def normalize_to_center(data):
+    """
+    Normaliza os dados de forma que os valores se distribuam em torno da média.
+
+    Args:
+        data (list or np.array): Lista ou array de dados numéricos a serem normalizados.
+
+    Returns:
+        np.array: Dados normalizados centrados na média.
+    """
+    data = np.array(data)
+    mean = np.mean(data)  # Calcula a média dos dados
+    centered_data = data - mean  # Centraliza os dados
+    max_abs = np.max(np.abs(centered_data))  # Encontra o máximo absoluto para normalizar
+    if max_abs == 0:
+        return centered_data  # Retorna os dados sem normalizar se max_abs for zero
+    return centered_data / max_abs  # Normaliza para o intervalo [-1, 1] centrado na média
+
+# Função para calcular e plotar a distribuição normal e a curtose para cada conjunto de dados
+def plot_distribution(data, title, outliers, lower_bound, upper_bound, save_path):
+    """Plota a distribuição dos dados, destacando a natureza e salvando o gráfico."""
+    # Normaliza os dados antes de ploteá-los
+    normalized_data = normalize_to_center(data)
+    mean = np.mean(normalized_data)
+    std_dev = np.std(normalized_data)
+    x = np.linspace(min(normalized_data), max(normalized_data), 1000)
+    y = norm.pdf(x, mean, std_dev)
+
+    plt.figure(figsize=(12, 8))
+    plt.hist(normalized_data, bins=30, density=True, alpha=0.6, color='g', label='Dados Normalizados')
+    plt.plot(x, y, label='Distribuição Normal', color='darkred')
+
+    sns.kdeplot(normalized_data, color='blue', label='Estimativa de Densidade de Kernel', linestyle='--')
+
+    for i in range(1, 4):
+        plt.axvline(mean - i*std_dev, color='black', linestyle='dashed', linewidth=1)
+        plt.axvline(mean + i*std_dev, color='black', linestyle='dashed', linewidth=1)
+
+    plt.axhline(0, color='black', linestyle='dotted', linewidth=1)
+    plt.axvline(lower_bound, color='orange', linestyle='dotted', linewidth=1, label='Limite Inferior (Outliers)')
+    plt.axvline(upper_bound, color='orange', linestyle='dotted', linewidth=1, label='Limite Superior (Outliers)')
+
+    plt.scatter(outliers, [0] * len(outliers), color='red', label='Outliers', zorder=5)
+
+    plt.text(mean, max(y)*0.5, r'$\mu$', horizontalalignment='center', fontsize=12)
+    plt.text(mean - std_dev, max(y)*0.2, r'$\mu - 1\sigma$', horizontalalignment='center', fontsize=12)
+    plt.text(mean + std_dev, max(y)*0.2, r'$\mu + 1\sigma$', horizontalalignment='center', fontsize=12)
+    plt.text(mean - 2*std_dev, max(y)*0.05, r'$\mu - 2\sigma$', horizontalalignment='center', fontsize=12)
+    plt.text(mean + 2*std_dev, max(y)*0.05, r'$\mu + 2\sigma$', horizontalalignment='center', fontsize=12)
+    plt.text(mean - 3*std_dev, max(y)*0.01, r'$\mu - 3\sigma$', horizontalalignment='center', fontsize=12)
+    plt.text(mean + 3*std_dev, max(y)*0.01, r'$\mu + 3\sigma$', horizontalalignment='center', fontsize=12)
+
+    kurt = kurtosis(normalized_data, fisher=False)
+    skewness = skew(normalized_data)
+    _, p_value = shapiro(normalized_data)
+
+    plt.title(f'{title}\nCurtose: {kurt:.2f}, Assimetria: {skewness:.2f}, p-valor do Shapiro-Wilk: {p_value:.4f}')
+    plt.xlabel('Valor')
+    plt.ylabel('Densidade de Probabilidade')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)  # Salva o gráfico no caminho especificado
+    plt.close()
+
+
+entity_finder.py
+import spacy
+from summarizer import Summarizer
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+import numpy as np
+import folium
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import time
+import requests
+import json
+from openai import OpenAI
+
+class EntityClassifier:
+    """
+    Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
+    e de busca de imagem (etapa 2), utilizando a SerpAPI como abordagem principal.
+    """
+    def __init__(self, openai_api_key, serp_api_key):
+        self.openai_client = OpenAI(api_key=openai_api_key)
+        self.nlp = spacy.load("pt_core_news_sm")
+        self.bert_model = Summarizer()
+        self.sia = SentimentIntensityAnalyzer()
+        self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
+        self.serp_api_key = serp_api_key
+        # Cache para imagens e evitar múltiplas chamadas duplicadas
+        self._image_cache = {}
+
+    def classificar_em_bloco(self, entidades_unicas):
+        """
+        Faz uma única chamada à API da OpenAI para classificar uma lista de entidades.
+        Retorna um dicionário {entidade: {"tipo":..., "local":...}}.
+        """
+        print(">>> [ETAPA 1] classificar_entidades_em_bloco: Iniciando classificação em lote...")
+
+        try:
+            # Prompt que enfatiza a unicidade das entidades
+            prompt_str = """
+            Você receberá uma lista de entidades (pessoas, organizações ou localizações).
+            Sintetize estas de maneira a eliminar duplicidades, verifique cada elemento, 
+            identifique se este se trata de uma pessoa, organização ou localização e categorize-as.
+            1) NÃO retorne entidades duplicadas. Cada entidade só pode aparecer uma única vez.
+            2) Responda estritamente em JSON, no formato:
+            {
+                "resultado": [
+                    {"entidade": "...", "tipo": "pessoa|organizacao|localizacao|desconhecido", "local": "... ou null"},
+                    ...
+                ]
+            }
+            Analise todas as entidades de entrada, garantindo a unicidade e se assegurando de 
+            que cada uma apareça exatamente uma vez no array 'resultado', associada à sua respectiva categorização.
+            """
+
+            prompt_entidades = "Lista de entidades:\n" + "\n".join([f"- {e}" for e in entidades_unicas])
+            prompt_final = prompt_str + "\n\n" + prompt_entidades
+
+            print(">>> [ETAPA 1] classificar_entidades_em_bloco: Enviando para OpenAI GPT-4...")
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt_final}]
+            )
+            conteudo = response.choices[0].message.content
+            print("\n--- Resposta da API (etapa 1) ---")
+            print(conteudo)
+
+            data = json.loads(conteudo)
+            classif_dict = {}
+            for item in data.get("resultado", []):
+                ent = item.get("entidade", "")
+                tipo_raw = item.get("tipo", "desconhecido")
+                loc_raw = item.get("local", None)
+
+                tipo_map = {
+                    "pessoa": "pessoa",
+                    "organizacao": "organização",
+                    "localizacao": "localização",
+                    "desconhecido": "desconhecido"
+                }
+                tipo_final = tipo_map.get(tipo_raw, "desconhecido")
+                loc_final = loc_raw if loc_raw != "null" else None
+                classif_dict[ent] = {
+                    "tipo": tipo_final,
+                    "local": loc_final
+                }
+
+            print(">>> [ETAPA 1] Classificação em lote concluída.")
+            return classif_dict
+
+        except Exception as e:
+            print(f"Erro na classificação em bloco: {e}")
+            return {}
+
+    def buscar_imagem_serpapi(self, query, tipo):
+        """
+        Busca de imagem na SerpAPI, com cache interno e fallback para placeholder.
+        """
+        # Se já existe em cache, retorna diretamente
+        if query in self._image_cache:
+            return self._image_cache[query]
+
+        print(f">>> [ETAPA 2] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
+        try:
+            params = {
+                "q": f"{query} {tipo}",
+                "tbm": "isch",
+                "api_key": self.serp_api_key
+            }
+            response = requests.get("https://serpapi.com/search", params=params)
+            if response.status_code == 200:
+                results = response.json()
+                if "images_results" in results and len(results["images_results"]) > 0:
+                    first_thumb = results["images_results"][0]["thumbnail"]
+                    print(f">>> [ETAPA 2] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
+                    self._image_cache[query] = first_thumb
+                    return first_thumb
+            print(f">>> [ETAPA 2] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
+            # Se não encontrou nada, retorna placeholder
+            self._image_cache[query] = "/static/img/placeholder.png"
+            return self._image_cache[query]
+        except Exception as e:
+            print(f"Erro na SerpAPI: {e}")
+            # Em caso de exceção, retorna placeholder
+            self._image_cache[query] = "/static/img/placeholder.png"
+            return self._image_cache[query]
+
+def geocode_location(geolocator, query):
+    """Tenta geocodar o texto 'query' e retorna (lat, lon) ou None."""
+    try:
+        location = geolocator.geocode(query)
+        # Aguardar um pouco para evitar limite de requisições consecutivas
+        time.sleep(0.7)
+        if location:
+            return (location.latitude, location.longitude)
+    except (GeocoderTimedOut, GeocoderServiceError):
+        pass
+    return None
+
+def process_text(text, classifier):
+    """
+    Processa o texto para identificar entidades, sumarizar e gerar tópicos.
+    Também gera um mapa Folium com base nas entidades localizadas.
+    """
+    print(">>> Iniciando processamento de texto...")
+    doc = classifier.nlp(text)
+    entidades = [ent.text for ent in doc.ents]
+    print(f">>> Entidades detectadas: {entidades}")
+
+    # Classificação em lote
+    entidades_unicas = list(set(entidades))
+    classificacoes = classifier.classificar_em_bloco(entidades_unicas)
+
+    entidades_classificadas = []
+    for ent in entidades:
+        if ent in classificacoes:
+            etype = classificacoes[ent]["tipo"]
+            elocal = classificacoes[ent]["local"]
+            entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
+        else:
+            entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
+
+    # Separar entidades em pessoas/organizações e localizações
+    pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
+    localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
+
+    # Análise de sentimento
+    pessoas_organizacoes_com_sentimento = []
+    for entidade_info in pessoas_organizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        pessoas_organizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    localizacoes_com_sentimento = []
+    for entidade_info in localizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        localizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    # Geração de resumo com BERT
+    resumo = classifier.bert_model(text)
+
+    # Clustering de tópicos
+    frases = [sent.text for sent in doc.sents]
+    if len(frases) > 1:
+        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+        X = vectorizer.fit_transform(frases)
+        num_clusters = min(3, len(frases))
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+        kmeans.fit(X)
+        clusters = kmeans.labels_
+
+        topicos = {}
+        for i, c in enumerate(clusters):
+            if c not in topicos:
+                topicos[c] = []
+            topicos[c].append(frases[i])
+
+        topicos_principais = []
+        for c in topicos:
+            centroide = np.mean(X[clusters == c], axis=0)
+            indice_representante = np.argmin(
+                np.linalg.norm(X[clusters == c] - centroide, axis=1)
+            )
+            topicos_principais.append(topicos[c][indice_representante])
+    else:
+        topicos_principais = ["Não há frases suficientes para clustering."]
+
+    # Busca de imagens para cada entidade
+    pessoas_organizacoes_com_imagens = []
+    for entidade_info in pessoas_organizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], entidade_info["tipo"])
+        pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    localizacoes_com_imagens = []
+    for entidade_info in localizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], "localização")
+        localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    # >>> Construir mapa dinamicamente via Folium <<<
+    # Posição inicial "genérica" centrada no Brasil
+    mapa = folium.Map(location=[-15.0, -50.0], zoom_start=4)
+    # Para cada local, tentar geocodar e adicionar marker
+    for loc in localizacoes_com_imagens:
+        coords = geocode_location(classifier.geolocator, loc["entidade"])
+        if coords:
+            popup_str = (f"Entidade: {loc['entidade']}<br>"
+                         f"Tipo: {loc['tipo']}<br>"
+                         f"Local Esperado: {loc['local']}<br>"
+                         f"Sentimento: {loc['sentimento']:.2f}")
+            folium.Marker(
+                location=coords,
+                popup=popup_str,
+                tooltip=f"{loc['entidade']} - {loc['tipo']}"
+            ).add_to(mapa)
+
+    # Gera HTML do mapa para embutir no front-end
+    map_html = mapa._repr_html_()
+
+    return {
+        "pessoas": pessoas_organizacoes_com_imagens,
+        "localizacoes": localizacoes_com_imagens,
+        "resumo": resumo,
+        "topicos": topicos_principais,
+        "map_html": map_html  # HTML do mapa gerado
+    }
+
+
+goose_scrape.py
+import requests
+from goose3 import Goose
+
+def scrape_links(links):
+    """
+    Função para raspar conteúdo de uma lista de links. 
+    Retorna uma tupla (combined_text, bad_links):
+      - combined_text: texto concatenado de todos os artigos bem-sucedidos
+      - bad_links: lista de links que falharam ou retornaram texto vazio
+    """
+    combined_text = ""
+    g = Goose()
+    bad_links = []
+
+    for link in links:
+        try:
+            article = g.extract(url=link)
+            text = article.cleaned_text if article else ""
+            if not text.strip():
+                # Se não houve texto, consideramos um link problemático
+                bad_links.append(link)
+                print(f"[SCRAPER] Link sem texto ou vazio: {link}")
+            else:
+                combined_text += text + "\n"
+        except Exception as e:
+            print(f"[SCRAPER] Erro ao processar link {link}: {e}")
+            bad_links.append(link)
+
+    return combined_text, bad_links
+
+
+sent_bayes.py
+import matplotlib
+matplotlib.use('Agg')  # Usar backend não-GUI
+
+import itertools
+import nltk
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+from datetime import datetime
+from pathlib import Path
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import RSLPStemmer
+from nltk.probability import FreqDist
+from modules.base import raiva, tristeza, surpresa, medo, desgosto, alegria
+import re
+from time import sleep
+from threading import Thread
+from queue import Queue
+from modules.dist_normal import analyze_data, detect_outliers, plot_distribution
+
+class SentimentAnalyzer:
+    """
+    Classe para análise de sentimentos em textos utilizando processamento de linguagem natural.
+    """
+    def __init__(self, output_dir='./static/generated_images'):
+        """Inicializa o analisador de sentimentos, configurando o diretório de saída."""
+        print("Reinicializando SentimentAnalyzer...")
+        nltk.download('punkt')
+        nltk.download('stopwords')
+        self.stopwordsnltk = stopwords.words('portuguese')
+        self.emotions_funcs = {
+            'raiva': raiva,
+            'tristeza': tristeza,
+            'surpresa': surpresa,
+            'medo': medo,
+            'desgosto': desgosto,
+            'alegria': alegria,
+        }
+        self.generated_images_dir = Path(output_dir)
+        self.generated_images_dir.mkdir(parents=True, exist_ok=True)
+        self.classificador = None
+        self.palavrasunicas = None
+
+    def reset_analyzer(self):
+        """Reinicializa o analisador de sentimentos."""
+        print("Resetando analisador...")
+        self.classificador = None
+        self.palavrasunicas = None
+
+    def deactivate_analyzer(self):
+        """Desativa o analisador de sentimentos."""
+        print("Desativando SentimentAnalyzer...")
+        self.classificador = None
+        self.palavrasunicas = None
+
+    @staticmethod
+    def count_paragraphs(text: str) -> list:
+        """Conta parágrafos no texto, retornando apenas os parágrafos não vazios."""
+        print("Contando parágrafos...")
+        paragraphs = text.split('\n\n')
+        return [p for p in paragraphs if p.strip()]
+
+    @staticmethod
+    def count_sentences(text: str) -> list:
+        """Conta frases no texto utilizando o tokenizador de sentenças do NLTK."""
+        print("Contando frases...")
+        return sent_tokenize(text, language='portuguese')
+
+    @staticmethod
+    def is_valid_html(content: str) -> bool:
+        """Verifica se o conteúdo é um HTML válido."""
+        print("Verificando se o conteúdo é HTML válido...")
+        return bool(re.search(r'<h1>Texto Analisado</h1>.*?<div.*?>.*?</div>', content, re.DOTALL))
+
+    def process_document(self, filepath: str) -> tuple:
+        """Processa um documento para separar em parágrafos e frases."""
+        print("Processando documento...")
+        with open(filepath, 'r', encoding='utf-8') as file:
+            text = file.read()
+        paragraphs = self.count_paragraphs(text)
+        sentences = self.count_sentences(text)
+        return paragraphs, sentences
+
+    def process_text(self, text: str) -> tuple:
+        """Processa um texto para separar em parágrafos e frases."""
+        print("Processando texto...")
+        text = text.replace('\r\n', '\n')
+        paragraphs = self.count_paragraphs(text)
+        sentences = self.count_sentences(text)
+        return paragraphs, sentences
+
+    def analyze_paragraphs(self, paragraphs: list) -> tuple:
+        """Analisa parágrafos para obter pontuações de sentimentos."""
+        print("Analisando parágrafos...")
+        scores_list = []
+        paragraph_end_indices = []
+        sentence_count = 0
+        for paragraph in paragraphs:
+            sents = self.count_sentences(paragraph)
+            for sentence in sents:
+                scores = self.classify_emotion(sentence)
+                scores_list.append(scores)
+            sentence_count += len(sents)
+            paragraph_end_indices.append(sentence_count)
+        return scores_list, paragraph_end_indices
+
+    def aplicastemmer(self, texto: list) -> list:
+        """Aplica um algoritmo de stemming às palavras do texto."""
+        print("Aplicando stemming...")
+        stemmer = RSLPStemmer()
+        frasesstemming = []
+        for (palavras, emocao) in texto:
+            comstemming = [str(stemmer.stem(p)) for p in word_tokenize(palavras) if p not in self.stopwordsnltk]
+            frasesstemming.append((comstemming, emocao))
+        return frasesstemming
+
+    def buscapalavras(self, frases: list) -> list:
+        """Busca todas as palavras fornecidas nas frases."""
+        print("Buscando palavras nas frases...")
+        all_words = []
+        for (words, _) in frases:
+            all_words.extend(words)
+        return all_words
+
+    def buscafrequencia(self, palavras: list) -> FreqDist:
+        """Calcula a frequência das palavras fornecidas."""
+        print("Calculando frequência das palavras...")
+        return FreqDist(palavras)
+
+    def buscapalavrasunicas(self, frequencia: FreqDist) -> list:
+        """Busca palavras únicas a partir da frequência de palavras."""
+        print("Buscando palavras únicas...")
+        return list(frequencia.keys())
+
+    def extratorpalavras(self, documento: list) -> dict:
+        """Extrai palavras do documento comparando com palavras únicas."""
+        print("Extraindo palavras do documento...")
+        doc = set(documento)
+        return {word: (word in doc) for word in self.palavrasunicas}
+
+    def classify_emotion(self, sentence: str) -> np.array:
+        """Classifica uma frase para cada emoção usando um Classificador Bayesiano Ingênuo."""
+        print("Classificando emoção na frase...")
+        if not self.classificador:
+            print("Treinando classificador Bayesiano Ingênuo...")
+            training_base = sum((self.emotions_funcs[emotion]() for emotion in self.emotions_funcs), [])
+            frasesstemming = self.aplicastemmer(training_base)
+            palavras = self.buscapalavras(frasesstemming)
+            frequencia = self.buscafrequencia(palavras)
+            self.palavrasunicas = self.buscapalavrasunicas(frequencia)
+            complete_base = nltk.classify.apply_features(lambda doc: self.extratorpalavras(doc), frasesstemming)
+            self.classificador = nltk.NaiveBayesClassifier.train(complete_base)
+
+        test_stemming = [RSLPStemmer().stem(p) for p in word_tokenize(sentence)]
+        new_features = self.extratorpalavras(test_stemming)
+        result = self.classificador.prob_classify(new_features)
+        return np.array([result.prob(emotion) for emotion in self.emotions_funcs.keys()])
+
+    def generate_html_content(self, timestamp: str, paragraphs: list, sentences: list, analyze_only=False) -> str:
+        """
+        Gera HTML dividido em partes fixas e dinâmicas.
+        
+        - 'paragraphs': lista de parágrafos do texto completo;
+        - 'sentences': lista de TODAS as sentenças do texto (caso seja necessário em outro lugar);
+        - 'analyze_only': se False, retorna o HTML fixo (texto analisado, timestamp, contagem).
+                          se True, retorna o HTML dinâmico (gráficos de sentimentos).
+        """
+
+        base_path = './static/generated/'
+        html_paragraphs = []
+        sentence_counter = 1
+        
+        # Conjunto para rastrear frases já indexadas
+        distributed_sentences = set()
+        
+        # Para evitar substituições repetidas ou fora de ordem,
+        # indexamos cada parágrafo individualmente.
+        for paragraph in paragraphs:
+            # Obtemos apenas as sentenças pertencentes a ESTE parágrafo
+            local_sentences = self.count_sentences(paragraph)
+        
+            marked_paragraph = paragraph
+            for s in local_sentences:
+                if s in marked_paragraph and s not in distributed_sentences:
+                    # Substitui apenas a primeira ocorrência, evitando duplicar índices se a frase se repetir
+                    marked_paragraph = marked_paragraph.replace(
+                        s,
+                        f"{s} <span style='color:red;'>[{sentence_counter}]</span>",
+                        1
+                    )
+                    sentence_counter += 1
+                    # Adiciona a frase ao conjunto de frases já processadas
+                    distributed_sentences.add(s)
+        
+            html_paragraphs.append(f"<p>{marked_paragraph}</p>")
+
+        # Se não estiver apenas analisando (analyze_only=False), geramos o HTML fixo (Texto + Timestamp + Contagem)
+        if not analyze_only:
+            html_fixed = f"""
+                <h1>Texto Analisado</h1>
+                <div id="analyzedText" style='border:1px solid black; padding:10px;'>
+                    {''.join(html_paragraphs)}
+                </div>
+            """
+            return html_fixed
+
+        # Caso contrário, geramos a parte dinâmica (gráficos de sentimentos, etc.)
+        html_dynamic = f"""
+            <h1>Gráficos Gerais</h1>
+            <div style='border:1px solid black; padding:10px; text-align:center;'>
+                <img src='{base_path}pie_chart_{timestamp}.png'
+                     alt='Gráfico de pizza de sentimentos'
+                     style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+                <img src='{base_path}bar_chart_{timestamp}.png'
+                     alt='Gráfico de barras de sentimentos'
+                     style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+            </div>
+        """
+
+        emotions = list(self.emotions_funcs.keys())
+        for emotion in emotions:
+            html_dynamic += f"""
+                <h2>{emotion.capitalize()}</h2>
+                <div style='border:1px solid black; padding:10px; text-align:center;'>
+                    <img src='{base_path}{emotion}_score_{timestamp}.png'
+                         alt='Gráfico de linhas para {emotion}'
+                         style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+                    <img src='{base_path}{emotion}_distribution_{timestamp}.png'
+                         alt='Distribuição Normal para {emotion}'
+                         style='max-width:80%; height:auto; margin: 10px 0; display:block;'>
+                </div>
+            """
+
+        return html_dynamic
+
+    def plot_individual_emotion_charts(self, scores_list: list, paragraph_end_indices: list, timestamp: str):
+        """
+        Plota gráficos de linhas individuais para cada sentimento e decide qual distribuição estatística é mais adequada.
+        Incluindo a geração das imagens de distribuição para evitar 404.
+        """
+        print("Plotando gráficos de linhas individuais para cada emoção...")
+        emotions = list(self.emotions_funcs.keys())
+
+        for i, emotion in enumerate(emotions):
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot([score[i] for score in scores_list], label=f'{emotion} pontuações')
+            for end_idx in paragraph_end_indices:
+                ax.axvline(x=end_idx, color='grey', linestyle='--',
+                           label='Fim do Parágrafo' if end_idx == paragraph_end_indices[0] else "")
+            ax.legend(loc='upper right')
+            ax.set_title(f'Evolução da Pontuação: {emotion}')
+            ax.set_xlabel('Contagem de frases')
+            ax.set_ylabel('Pontuações')
+            plt.tight_layout()
+
+            # Salvando a imagem de pontuação para cada emoção
+            emotion_image_path = self.generated_images_dir / f'{emotion}_score_{timestamp}.png'
+            plt.savefig(emotion_image_path)
+            plt.close()
+
+            # Analisando os dados e gerando o gráfico de distribuição
+            emotion_scores = [score[i] for score in scores_list]
+            nature = analyze_data(emotion_scores)  # Identificação da característica da distribuição
+            outliers, lower_bound, upper_bound = detect_outliers(emotion_scores)  # Detecção de outliers
+            distribution_image_path = self.generated_images_dir / f'{emotion}_distribution_{timestamp}.png'
+            plot_distribution(
+                emotion_scores, f'{emotion} ({nature})',
+                outliers, lower_bound, upper_bound, distribution_image_path
+            )
+
+    def plot_pie_chart(self, scores_list, timestamp):
+        """Plota um gráfico de pizza da distribuição de emoções."""
+        labels = list(self.emotions_funcs.keys())
+        sizes = [np.mean([score[idx] for score in scores_list]) for idx in range(len(labels))]
+        plt.figure(figsize=(8, 8))
+        plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+        plt.title('Proporção de Cada Sentimento')
+
+        filepath = self.generated_images_dir / f'pie_chart_{timestamp}.png'
+        plt.savefig(filepath)
+        plt.close()
+        return str(filepath)
+
+    def plot_bar_chart(self, scores_list, timestamp):
+        """Plota um gráfico de barras das frequências de emoções."""
+        labels = list(self.emotions_funcs.keys())
+        sizes = [np.sum([score[idx] for score in scores_list]) for idx in range(len(labels))]
+        plt.figure(figsize=(10, 6))
+        plt.bar(labels, sizes, color='purple', edgecolor='black')
+        plt.title('Frequência de Emoções Detectadas')
+        plt.xlabel('Emoção')
+        plt.ylabel('Frequência')
+
+        filepath = self.generated_images_dir / f'bar_chart_{timestamp}.png'
+        plt.savefig(filepath)
+        plt.close()
+        return str(filepath)
+
+    def execute_analysis_text(self, text):
+        """Realiza a análise de sentimentos e retorna também a contagem e timestamp para armazenarmos."""
+        if not text:  # Verifica se o texto é None ou vazio
+            raise ValueError("Nenhum texto fornecido para análise.")
+
+        self.reset_analyzer()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        paragraphs, sentences = self.process_text(text)
+        scores_list, paragraph_end_indices = self.analyze_paragraphs(paragraphs)
+
+        # Plota gráficos de linhas + distribuição
+        self.plot_individual_emotion_charts(scores_list, paragraph_end_indices, timestamp)
+        # Plota os gráficos de pizza e barras
+        self.plot_pie_chart(scores_list, timestamp)
+        self.plot_bar_chart(scores_list, timestamp)
+
+        html_fixed = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=False)
+        html_dynamic = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=True)
+
+        # Devolvemos: HTML fixo, HTML dinâmico, nº de parágrafos, nº de frases, e o timestamp
+        return html_fixed, html_dynamic, len(paragraphs), len(sentences), timestamp
+
+    def generate_html_content_process(self, queue: Queue, timestamp: str, paragraphs: list, sentences: list):
+        """Gera conteúdo HTML fixo e dinâmico em processos separados e adiciona ao Queue."""
+        print("Gerando conteúdo HTML no processo separado...")
+        html_fixed = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=False)
+        html_dynamic = self.generate_html_content(timestamp, paragraphs, sentences, analyze_only=True)
+        queue.put((html_fixed, html_dynamic))
+
+
+timeline_generator.py
+import os
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from dotenv import load_dotenv
+from openai import OpenAI
+
+###############################################
+# Conteúdo originalmente em timeline_generator.py
+###############################################
+
+# Carrega as variáveis do arquivo .env
+load_dotenv()
+
+# Recupera a chave da API do arquivo .env
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
+if not openai_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
+# Inicializa o cliente OpenAI
+client = OpenAI(api_key=openai_api_key)
+
+# Prompt de instruções aprimorado (sem incluir os arquivos de parser)
+prompt_instructions = """
+Você está usando o modelo GPT-4. Seu objetivo é gerar um arquivo .timeline compatível com o parser da versão 2.9.0 do Timeline, 
+obedecendo rigorosamente à estrutura e às regras de parsing definidas nos arquivos `timelinexml.py` e `xmlparser.py`.
+
+1. **Início do Arquivo**  
+   - O conteúdo deve iniciar estritamente com:
+     <?xml version="1.0" encoding="UTF-8"?>
+     <timeline>
+       <version>2.9.0</version>
+       <timetype>gregoriantime</timetype>
+
+2. **Ordem dos Blocos Principais**  
+   O parser define:
+   - <eras> (OPCIONAL) mas, se existir, **vem** antes de <categories>
+   - <categories> (SINGLE)
+   - <events> (SINGLE)
+   - <view> (SINGLE)
+   - <now> (OPCIONAL)
+   Mantenha essa ordem.  
+
+3. **Detalhe dos Sub-elementos**  
+   - **Caso `<eras>` apareça**:
+     - `<era>` (ANY)
+       - `<name>`, `<start>`, `<end>`, `<color>`, `<ends_today>` (opcional)
+   - **`<categories>`** (SINGLE)  
+     - `<category>` (ANY)
+       - `<name>`, `<color>` etc.
+   - **`<events>`** (SINGLE)  
+     - `<event>` (ANY), com a **seguinte ordem** de sub-tags:
+       1. `<start>` (SINGLE)  
+       2. `<end>` (SINGLE)  
+       3. `<text>` (SINGLE)  
+       4. `<progress>` (OPCIONAL)  
+       5. `<fuzzy>` (OPCIONAL)  
+       6. `<fuzzy_start>` (OPCIONAL)  
+       7. `<fuzzy_end>` (OPCIONAL)  
+       8. `<locked>` (OPCIONAL)  
+       9. `<ends_today>` (OPCIONAL)  
+       10. `<category>` (OPCIONAL)  
+       11. `<categories>` (OPCIONAL, com `<category>` ANY dentro)  
+       12. `<description>` (OPCIONAL)  
+       13. `<labels>` (OPCIONAL)  
+       14. `<alert>` (OPCIONAL)  
+       15. `<hyperlink>` (OPCIONAL)  
+       16. `<icon>` (OPCIONAL)  
+       17. `<default_color>` (OPCIONAL, r,g,b)  
+       18. `<milestone>` (OPCIONAL)  
+   - **`<view>`** (SINGLE)  
+     - `<displayed_period>` (OPCIONAL)
+       - `<start>`, `<end>` (SINGLE)
+     - `<hidden_categories>` (OPCIONAL)
+       - `<name>` (ANY)
+   - **`<now>`** (OPCIONAL) (se existir, vem após `<view>`)
+
+4. **Formato das Datas**  
+   - Sempre use `YYYY-MM-DD HH:MM:SS` em `<start>` e `<end>`.
+
+5. **Formato das Cores**  
+   - Use `r,g,b` (sem #).
+
+6. **Sem atributos**  
+   - Nenhum `<tag attr="...">`.
+
+7. **Exemplo Simplificado**  
+   <?xml version="1.0" encoding="UTF-8"?>
+   <timeline>
+     <version>2.9.0</version>
+     <timetype>gregoriantime</timetype>
+     <eras>
+       <era>
+         <name>Exemplo</name>
+         <start>2025-01-01 00:00:00</start>
+         <end>2025-02-01 00:00:00</end>
+         <color>200,200,200</color>
+         <ends_today>False</ends_today>
+       </era>
+     </eras>
+     <categories>
+       <category>
+         <name>Política</name>
+         <color>255,0,0</color>
+       </category>
+     </categories>
+     <events>
+       <event>
+         <start>2025-01-10 00:00:00</start>
+         <end>2025-01-10 23:59:59</end>
+         <text>Evento Exemplo</text>
+         <progress>0</progress>
+         <fuzzy>False</fuzzy>
+         <locked>False</locked>
+         <ends_today>False</ends_today>
+         <category>Política</category>
+         <default_color>255,255,0</default_color>
+       </event>
+     </events>
+     <view>
+       <displayed_period>
+         <start>2025-01-01 00:00:00</start>
+         <end>2025-02-01 00:00:00</end>
+       </displayed_period>
+     </view>
+   </timeline>
+
+**Restrições Finais**  
+- Não inclua texto solto entre tags que tenham filhos.  
+- Não use delimitadores de código como ``` ou '''.  
+- Se quiser mais eventos ou categorias, repita mantendo a ordem exata.  
+- **Não coloque nada antes de** `<?xml version="1.0" encoding="UTF-8"?>` **nem nada depois de** `</timeline>`.  
+- **Use as informações em {{text_list}}** para criar os eventos, mas respeite essa hierarquia fielmente.
+
+**Erros Comuns e Como Evitá-los**:
+- **Erro de Ordem**: Certifique-se de que a ordem das tags seja respeitada. Por exemplo, `<eras>` deve vir antes de `<categories>`.
+- **Erro de Formato de Data**: Use sempre o formato `YYYY-MM-DD HH:MM:SS` para datas.
+- **Erro de Formato de Cor**: Use o formato `r,g,b` para cores, sem o símbolo `#`.
+- **Erro de Atributos**: Não use atributos em tags. Todas as informações devem estar dentro de tags filhas.
+- **Erro de Texto Solto**: Não inclua texto solto entre tags que tenham filhos.
+
+Se o XML gerado não for válido, a função de verificação indicará o erro e reativará a API para corrigir o XML.
+"""
+
+class TimelineValidator:
+    """
+    Classe responsável por validar e corrigir o XML da timeline.
+    """
+    def __init__(self, client, prompt_instructions):
+        self.client = client
+        self.prompt_instructions = prompt_instructions
+        self.attempts = 0  # Contador de tentativas
+
+    def sanitize_xml(self, xml_string):
+        """
+        Remove qualquer conteúdo antes de <?xml version="1.0" encoding="UTF-8"?> 
+        e depois de </timeline>.
+        """
+        start_tag = '<?xml version="1.0" encoding="UTF-8"?>'
+        end_tag = '</timeline>'
+        
+        if start_tag in xml_string:
+            xml_string = xml_string[xml_string.index(start_tag):]
+        if end_tag in xml_string:
+            idx_end = xml_string.index(end_tag) + len(end_tag)
+            xml_string = xml_string[:idx_end]
+        return xml_string
+
+    def validate_timeline(self, timeline_xml):
+        """
+        Valida o XML gerado usando o parser do Timeline 2.9.0.
+        Retorna uma mensagem de erro se houver problemas.
+        """
+        try:
+            # Simulação de validação pelo Timeline 2.9.0
+            root = ET.fromstring(timeline_xml)
+            if root.tag != "timeline":
+                return "A tag raiz deve ser <timeline>."
+            
+            # Verifica a ordem das tags principais
+            expected_order = ["version", "timetype", "eras", "categories", "events", "view", "now"]
+            current_order = [child.tag for child in root]
+            
+            for expected, current in zip(expected_order, current_order):
+                if expected != current:
+                    return f"A tag <{expected}> deve vir antes de <{current}>."
+            
+            # Verifica o formato das datas e cores
+            for event in root.findall(".//event"):
+                start = event.find("start").text
+                end = event.find("end").text
+                if not re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", start):
+                    return f"Formato de data inválido em <start>: {start}"
+                if not re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", end):
+                    return f"Formato de data inválido em <end>: {end}"
+                
+                color = event.find("default_color")
+                if color is not None:
+                    if not re.match(r"\d{1,3},\d{1,3},\d{1,3}", color.text):
+                        return f"Formato de cor inválido em <default_color>: {color.text}"
+            
+            # Se tudo estiver correto, retorna None (sem erros)
+            return None
+        
+        except Exception as e:
+            return f"Erro ao validar o XML: {e}"
+
+    def generate_timeline(self, text_list):
+        """
+        Gera uma timeline a partir de uma lista de textos, validando e corrigindo o XML até que esteja correto.
+        O loop é interrompido após 5 tentativas sem sucesso.
+        """
+        while self.attempts < 5:
+            print(f"\n--- Tentativa {self.attempts + 1} ---")
+
+            # Concatena os itens da lista em um único texto (respeitando quebras de linha)
+            combined_text = "\n".join(text_list)
+
+            # Monta o prompt final
+            prompt = f"{self.prompt_instructions}\n\nConteúdo de text_list:\n{combined_text}"
+            print("\n--- Prompt Enviado para a API ---")
+            print(prompt)
+
+            try:
+                # Chamada à API, usando GPT-4
+                response = self.client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+
+                timeline_xml = response.choices[0].message.content
+                print("\n--- Resposta da API ---")
+                print(timeline_xml)
+
+                # Aplica a função de sanitização para remover lixo antes/depois das tags
+                timeline_xml = self.sanitize_xml(timeline_xml)
+
+                # Remove BOM e espaços à esquerda que possam quebrar o XML
+                timeline_xml = timeline_xml.lstrip("\ufeff").lstrip()
+
+                # Se houver <timeline ...> com atributos, remover
+                if "<timeline " in timeline_xml:
+                    timeline_xml = timeline_xml.replace("<timeline ", "<timeline>")
+
+                # Valida o XML usando o Timeline 2.9.0
+                error_message = self.validate_timeline(timeline_xml)
+                if error_message is None:
+                    print("\n--- Timeline gerada com sucesso! ---")
+                    return timeline_xml
+                else:
+                    print(f"\n--- Erro na validação: {error_message} ---")
+                    self.attempts += 1
+
+                    # Ativa o prompt de correção
+                    correction_prompt = f"""
+                    O XML gerado contém o seguinte erro: {error_message}.
+                    Por favor, corrija o XML seguindo as regras fornecidas anteriormente.
+                    Preserve ipsis literis, todos os conteúdos acerca dos eventos e eras apresentados,
+                    em situação nenhuma remova, omita, ou diminua estes conteúdos.
+                    Manipule apenas a estrutura do arquivo xml.
+                    Aqui está o XML incorreto para referência:
+                    {timeline_xml}
+                    """
+                    print("\n--- Prompt de Correção Enviado para a API ---")
+                    print(correction_prompt)
+
+                    # Reativa a API com o prompt de correção
+                    response = self.client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[{"role": "user", "content": correction_prompt}]
+                    )
+
+                    timeline_xml = response.choices[0].message.content
+                    print("\n--- Resposta da API (Correção) ---")
+                    print(timeline_xml)
+
+            except Exception as e:
+                print(f"Erro ao acessar a API: {e}")
+                self.attempts += 1
+
+        print("\n--- Número máximo de tentativas atingido (5). Abortando... ---")
+        return None
+
+class TimelineGenerator:
+    """
+    Classe que unifica a criação de arquivos .timeline, usando o TimelineValidator.
+    """
+    def __init__(self):
+        # Instancia o validador com o mesmo cliente e prompt do GPT-4
+        self.validator = TimelineValidator(client, prompt_instructions)
+
+    def create_timeline(self, text_list):
+        """
+        Recebe uma lista de strings (text_list) a serem analisadas e concatenadas
+        para montagem do prompt final, preservando todo o resto da lógica.
+        """
+        validated_xml = self.validator.generate_timeline(text_list)
+        
+        if validated_xml is None:
+            print("Não foi possível gerar uma timeline válida.")
+            return None
+
+        # Gera um nome de arquivo baseado na data/hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Verifica (e cria, se não existir) a pasta 'timeline_api_output'
+        output_folder = "static/generated/timeline_output"
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        timeline_file = f"{output_folder}/{timestamp}.timeline"
+
+        # Salva com utf-8-sig
+        with open(timeline_file, 'w', encoding='utf-8-sig') as file:
+            file.write(validated_xml)
+
+        print(f"\n--- Linha do tempo salva com sucesso em: {timeline_file} ---")
+        return timeline_file
+
+
+###############################################
+# Conteúdo originalmente em timeline_javascript.py
+###############################################
+
+# Removemos as importações e elementos específicos do Flask
+# mas preservamos o parse_timeline_xml e parse_color ipsis litteris.
+
+def parse_color(color_str):
+    # Converte uma string de cor 'R,G,B' para o formato hexadecimal '#RRGGBB'
+    r, g, b = map(int, color_str.split(','))
+    return f'#{r:02x}{g:02x}{b:02x}'
+
+class TimelineParser:
+    """
+    Classe responsável por carregar e interpretar um arquivo .timeline (XML) 
+    de acordo com a lógica original do timeline_javascript.py.
+    """
+    def __init__(self):
+        pass
+
+    def parse_timeline_xml(self, file_path):
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+
+        # Captura minimalista de versão e tipo de tempo do XML,
+        # preservando todas as demais partes do código.
+        version_node = root.find('version')
+        timetype_node = root.find('timetype')
+        version = version_node.text if version_node is not None else "2.9.0"
+        timetype = timetype_node.text if timetype_node is not None else "gregoriantime"
+
+        # Parse categories
+        categories_elem = root.find('categories')
+        categories = {}
+        if categories_elem is not None:
+            for category in categories_elem:
+                name = category.find('name').text
+                color = parse_color(category.find('color').text)
+                progress_color = (parse_color(category.find('progress_color').text) 
+                                  if category.find('progress_color') is not None else None)
+                done_color = (parse_color(category.find('done_color').text) 
+                              if category.find('done_color') is not None else None)
+                font_color = (parse_color(category.find('font_color').text) 
+                              if category.find('font_color') is not None and category.find('font_color').text is not None 
+                              else None)
+
+                categories[name] = {
+                    'color': color,
+                    'progress_color': progress_color,
+                    'done_color': done_color,
+                    'font_color': font_color
+                }
+
+        # Parse eras
+        eras_elem = root.find('eras')
+        eras = []
+        if eras_elem is not None:
+            for era in eras_elem:
+                name = era.find('name').text
+                start = era.find('start').text
+                end = era.find('end').text
+                color = parse_color(era.find('color').text)
+                eras.append({
+                    'name': name,
+                    'start': start,
+                    'end': end,
+                    'color': color
+                })
+
+        # Parse events
+        events_elem = root.find('events')
+        events = []
+        if events_elem is not None:
+            for event in events_elem:
+                start = event.find('start').text
+                end = event.find('end').text
+                text = event.find('text').text
+                category = event.find('category').text if event.find('category') is not None else 'Uncategorized'
+                description = event.find('description').text if event.find('description') is not None else ''
+                default_color = (parse_color(event.find('default_color').text) 
+                                 if event.find('default_color') is not None 
+                                 else categories.get(category, {}).get('color', '#000000'))
+                milestone = (event.find('milestone').text.lower() == 'true' 
+                             if event.find('milestone') is not None else False)
+
+                events.append({
+                    'start': start,
+                    'end': end,
+                    'text': text,
+                    'category': category,
+                    'description': description,
+                    'color': default_color,
+                    'milestone': milestone
+                })
+
+        # Adiciona um campo de intervalo de tempo relativo (já existente)
+        for ev in events:
+            start_time = ev['start']
+            end_time = ev['end']
+            ev['duration'] = f"{start_time} to {end_time}"
+
+        # Parse view
+        view_elem = root.find('view')
+        view = {}
+        if view_elem is not None:
+            displayed_period = view_elem.find('displayed_period')
+            if displayed_period is not None:
+                view = {
+                    'start': displayed_period.find('start').text,
+                    'end': displayed_period.find('end').text
+                }
+
+        return {
+            'version': version,
+            'timetype': timetype,
+            'categories': categories,
+            'eras': eras,
+            'events': events,
+            'view': view
+        }
+
+representacao_social.py
+import re
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Mantém backend non-interactive
+import matplotlib.pyplot as plt
+import os
+import time
+import nltk
+from nltk.corpus import stopwords
+from flask import jsonify
+
+class RepresentacaoSocial:
+    def __init__(self, textos, aplicar_filtro=True):
+        """
+        Inicializa a classe com os textos e prepara os dados.
+        :param textos: Lista de textos para análise.
+        :param aplicar_filtro: Define se o filtro de números e emojis será aplicado.
+        """
+        self.textos = [self._limpar_pontuacao(texto) for texto in textos]
+        self.data = self._preparar_dados(aplicar_filtro=aplicar_filtro)
+
+    def _limpar_pontuacao(self, texto):
+        """
+        Remove pontuação de um texto.
+        :param texto: Texto de entrada.
+        :return: Texto sem pontuação.
+        """
+        return re.sub(r'[^\w\s]', '', texto)
+
+    def _remover_numeros_emojis(self, texto):
+        """
+        Remove números, numerais ordinais e emojis de um texto.
+        :param texto: Texto de entrada.
+        :return: Texto sem números, numerais ordinais e emojis.
+        """
+        texto = re.sub(r'\b\d+\b', '', texto)  # Remove números inteiros
+        texto = re.sub(r'\b\d+(?:st|nd|rd|th)\b', '', texto)  # Remove numerais ordinais
+        texto = re.sub(r'[^\w\s,]', '', texto)  # Remove emojis
+        return texto
+
+    def _preparar_dados(self, aplicar_filtro=True):
+        """
+        Prepara os dados para análise.
+        :param aplicar_filtro: Define se o filtro de números e emojis será aplicado.
+        :return: DataFrame com palavras e suas ordens.
+        """
+        palavras = []
+        ordem = []
+        for i, texto in enumerate(self.textos):
+            texto_limpo = self._remover_numeros_emojis(texto) if aplicar_filtro else texto
+            for j, palavra in enumerate(texto_limpo.split(), start=1):
+                palavras.append(palavra.lower())
+                ordem.append(j)
+        return pd.DataFrame({'palavra': palavras, 'ordem': ordem})
+
+    def calcular_frequencia_ome(self):
+        """
+        Calcula frequência, OME (Ordem Média de Evocação) e determina as zonas.
+        :return: DataFrame com os resultados.
+        """
+        frequencia = self.data['palavra'].value_counts().reset_index()
+        frequencia.columns = ['palavra', 'frequencia']
+        ome = self.data.groupby('palavra')['ordem'].mean().reset_index()
+        ome.columns = ['palavra', 'OME']
+        resultado = pd.merge(frequencia, ome, on='palavra')
+        freq_quartil = resultado['frequencia'].median()
+        ome_quartil = resultado['OME'].median()
+        resultado['zona'] = resultado.apply(
+            lambda row: (
+                "Núcleo Central" if row['frequencia'] > freq_quartil and row['OME'] <= ome_quartil else
+                "Zona Periférica 1" if row['frequencia'] <= freq_quartil and row['OME'] <= ome_quartil else
+                "Zona Periférica 2" if row['frequencia'] > freq_quartil and row['OME'] > ome_quartil else
+                "Zona Periférica 3"
+            ),
+            axis=1
+        )
+        self.resultado = resultado
+        return resultado
+
+    def gerar_grafico(self, df, filtro, zona, upload_folder):
+        """
+        Gera um gráfico baseado nos dados filtrados.
+        :param df: DataFrame com os dados filtrados.
+        :param filtro: Tipo de filtro aplicado.
+        :param zona: Zona correspondente.
+        :param upload_folder: Caminho para salvar o gráfico.
+        :return: Caminho do gráfico gerado.
+        """
+        plt.figure(figsize=(6, 4))
+        plt.scatter(df['frequencia'], df['OME'])
+        plt.title(f"Gráfico para {filtro.capitalize()} Stopwords e {zona}")
+        plt.xlabel('Frequência')
+        plt.ylabel('OME')
+        filepath = os.path.join(upload_folder, f"grafico_{time.time()}.png")
+        plt.savefig(filepath)
+        plt.close()
+        return filepath
+
+
+def process_representacao_social(text, request_form, upload_folder):
+    """
+    Processa a análise de Representação Social.
+    :param text: Texto para análise.
+    :param request_form: Formulário com os filtros.
+    :param upload_folder: Caminho para salvar arquivos gerados.
+    :return: JSON com o HTML gerado.
+    """
+    textos = nltk.sent_tokenize(text)
+    aplicar_filtro = request_form.get('extra_filter', 'nao') == 'sim'
+    analise = RepresentacaoSocial(textos, aplicar_filtro=aplicar_filtro)
+    resultado = analise.calcular_frequencia_ome()
+
+    # ------ Ajustes no filtro de stopwords ------
+    stopwords_filter = request_form.get('stopwords', 'com')
+    stopwords_list = set(stopwords.words('portuguese'))
+
+    if stopwords_filter == "com":
+        palavras = resultado
+    elif stopwords_filter == "sem":
+        palavras = resultado[~resultado['palavra'].isin(stopwords_list)]
+    elif stopwords_filter == "stopwords":
+        palavras = resultado[resultado['palavra'].isin(stopwords_list)]
+    else:
+        palavras = resultado
+
+    # ------ Ajustes no filtro de zonas ------
+    zone_filter = request_form.get('zone', 'todas')
+    zonas = ["Núcleo Central", "Zona Periférica 1", "Zona Periférica 2", "Zona Periférica 3"]
+    graficos_tabelas = []
+
+    if zone_filter == "todas":
+        for zona in zonas:
+            zona_dados = palavras[palavras['zona'] == zona]
+            grafico_path = analise.gerar_grafico(zona_dados, stopwords_filter, zona, upload_folder)
+            graficos_tabelas.append({
+                "zona": zona,
+                "tabela": zona_dados.to_html(classes='table table-striped', index=False),
+                "grafico": grafico_path
+            })
+    else:
+        zona_dados = palavras[palavras['zona'] == zone_filter]
+        grafico_path = analise.gerar_grafico(zona_dados, stopwords_filter, zone_filter, upload_folder)
+        graficos_tabelas.append({
+            "zona": zone_filter,
+            "tabela": zona_dados.to_html(classes='table table-striped', index=False),
+            "grafico": grafico_path
+        })
+
+    html = ""
+    for item in graficos_tabelas:
+        html += f"""
+        <div class="zona-section">
+            <h4>{item['zona']}</h4>
+            <img src="{item['grafico']}" style="width: 100%; margin-bottom: 10px;" class="img-fluid">
+            <div>{item['tabela']}</div>
+        </div>
+        <hr>
+        """
+
+    return jsonify({"html": html})

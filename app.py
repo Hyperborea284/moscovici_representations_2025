@@ -20,6 +20,10 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
 
+serp_api_key = os.getenv("SERP_API_KEY")
+if not serp_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
 # Inicializar o Flask
 app = Flask(__name__)
 
@@ -29,7 +33,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Inicializar o EntityClassifier com a chave da OpenAI
-entity_classifier = EntityClassifier(openai_api_key)
+entity_classifier = EntityClassifier(openai_api_key, serp_api_key)
 
 # Variável global para armazenar conteúdo compartilhado
 shared_content = {
@@ -97,9 +101,6 @@ def ingest_content():
         shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
-        # Processar texto para identificar entidades
-        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
-
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Erro durante a ingestão de conteúdo: {e}")
@@ -163,7 +164,8 @@ def reset_content():
         "html_dynamic": None, 
         "algorithm": None, 
         "bad_links": [],
-        "timeline_file": None
+        "timeline_file": None,
+        "entities": None  # Resetar entidades também
     }
     return jsonify({"status": "success"})
 
@@ -244,12 +246,20 @@ def process():
     )
 
 # >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
-@app.route('/entities_and_locations')
-def entities_and_locations():
-    if not shared_content.get("entities"):
-        return jsonify({"error": "Nenhuma entidade encontrada"}), 400
+@app.route('/identify_entities', methods=['POST'])
+def identify_entities():
+    """Rota para identificar entidades e localidades, incluindo criação de mapa."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
 
-    return render_template('entities_and_locations.html', entities=shared_content["entities"])
+    try:
+        # Processar texto para identificar entidades e construir o mapa
+        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
+        return jsonify({"status": "success", "entities": shared_content["entities"]})
+    except Exception as e:
+        print(f"Erro durante a identificação de entidades: {e}")
+        return jsonify({"error": "Erro ao identificar entidades"}), 500
 
 # >>>>>>> ROTAS DA TIMELINE <<<<<<<
 @app.route('/generate_timeline', methods=['POST'])
@@ -279,7 +289,7 @@ def generate_timeline():
 @app.route('/view_timeline', methods=['GET'])
 def view_timeline():
     """
-    Rota para exibir a timeline gerada, agora retornando 'timeline.html' via JSON.
+    Rota para exibir a timeline gerada, retornando 'timeline.html' via JSON.
     """
     filename = request.args.get('file')
     if not filename:

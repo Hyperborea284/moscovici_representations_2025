@@ -318,25 +318,6 @@ function addWeekAxis(svg, startDate, endDate) {
     }
 }
 
-// Função para adicionar linhas de grade extras
-function addGridLines(svg, startDate, endDate) {
-    const stepMs = getDynamicStep(startDate, endDate);
-    let current = new Date(startDate);
-
-    while (current <= endDate) {
-        const xPos = timeScale(current);
-        svg.append("line")
-            .attr("x1", xPos)
-            .attr("x2", xPos)
-            .attr("y1", 0)
-            .attr("y2", svgHeight)
-            .attr("stroke", "#ccc")
-            .attr("stroke-dasharray", "2,2");
-
-        current = new Date(current.getTime() + stepMs);
-    }
-}
-
 // Função para calcular o passo dinâmico
 function getDynamicStep(startDate, endDate) {
     const diffMs = endDate - startDate;
@@ -359,24 +340,6 @@ function getDynamicStep(startDate, endDate) {
     return 365 * 86400 * 1000; // ou 30 dias, de modo aproximado
 }
 
-// Função para configurar a caixa de categorias
-function setupCategoryBox(categories) {
-    const categoryBox = document.getElementById("category-box");
-    Object.entries(categories).forEach(([name, props]) => {
-        const categoryItem = document.createElement("div");
-        categoryItem.className = "category-item";
-        categoryItem.innerHTML = `<span class="category-color" style="background:${props.color}"></span>${name}`;
-        categoryItem.addEventListener("click", () => toggleCategory(name));
-        categoryBox.appendChild(categoryItem);
-    });
-
-    function toggleCategory(name) {
-        d3.selectAll(`.event-${name}`).classed("hidden", function () {
-            return !d3.select(this).classed("hidden");
-        });
-    }
-}
-
 // Função para exibir a descrição do evento
 function showDescription(event, e) {
     const eventDescription = document.getElementById("event-description");
@@ -391,13 +354,3 @@ function hideDescription() {
     const eventDescription = document.getElementById("event-description");
     eventDescription.style.display = "none";
 }
-
-// Inicialização após o carregamento do DOM
-document.addEventListener("DOMContentLoaded", function () {
-    const timelineBtn = document.getElementById("timelineBtn");
-    if (timelineBtn) {
-        timelineBtn.addEventListener("click", function () {
-            loadTimeline();
-        });
-    }
-});

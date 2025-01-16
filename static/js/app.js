@@ -1,3 +1,26 @@
+// Função para carregar a lista de timelines disponíveis (agora global)
+function loadTimelineList() {
+    $.ajax({
+        url: '/list_timelines', // Rota para listar os arquivos de timeline
+        type: 'GET',
+        success: function (data) {
+            const timelineDropdown = $('#timelineDropdown');
+            timelineDropdown.empty(); // Limpa o dropdown atual
+            if (data.timelines && data.timelines.length > 0) {
+                data.timelines.forEach(timeline => {
+                    const option = $(`<option value="${timeline}">${timeline}</option>`);
+                    timelineDropdown.append(option);
+                });
+            } else {
+                timelineDropdown.append('<option value="">Nenhuma timeline disponível</option>');
+            }
+        },
+        error: function () {
+            alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
+        }
+    });
+}
+
 $(document).ready(function () {
     const ingestContent = $('#ingestContent');
     const fixedContent = $('#fixedContent');
@@ -6,31 +29,13 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
-    // Função para carregar a lista de timelines disponíveis
-    function loadTimelineList() {
-        $.ajax({
-            url: '/list_timelines', // Rota para listar os arquivos de timeline
-            type: 'GET',
-            success: function (data) {
-                const timelineFiles = $('#timelineFiles');
-                timelineFiles.empty(); // Limpa a lista atual
-                if (data.timelines && data.timelines.length > 0) {
-                    data.timelines.forEach(timeline => {
-                        const listItem = $(`<li class="list-group-item">${timeline}</li>`);
-                        listItem.on('click', function () {
-                            loadTimeline(timeline); // Carrega a timeline selecionada
-                        });
-                        timelineFiles.append(listItem);
-                    });
-                } else {
-                    timelineFiles.append('<li class="list-group-item">Nenhuma timeline disponível.</li>');
-                }
-            },
-            error: function () {
-                alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
-            }
-        });
-    }
+    // Ao mudar a seleção do dropdown, exibe a timeline correspondente
+    $('#timelineDropdown').on('change', function () {
+        const filename = $(this).val();
+        if (filename) {
+            loadTimeline(filename);
+        }
+    });
 
     // Função para carregar uma timeline específica
     function loadTimeline(filename) {
@@ -389,17 +394,71 @@ $(document).ready(function () {
         });
     });
 
-    // Carregar entidades e localidades ao abrir a aba
-    $('#entities-tab').on('click', function () {
+    // Botão de Identificar Entidades
+    $('#identifyEntitiesBtn').on('click', function () {
         $.ajax({
-            url: '/entities_and_locations',
-            type: 'GET',
+            url: '/identify_entities',
+            type: 'POST',
             success: function (data) {
-                $('#entitiesResults').html(data);
+                if (data.status === "success") {
+                    // Atualiza o conteúdo da aba com as entidades identificadas
+                    $('#entitiesResults').html(renderEntities(data.entities));
+                    // Se houver HTML do mapa, injeta no mapContainer
+                    if (data.entities.map_html) {
+                        $('#mapContainer').html(data.entities.map_html);
+                    }
+                } else {
+                    alert("Erro ao identificar entidades. Verifique o servidor.");
+                }
             },
             error: function () {
-                alert("Erro ao carregar entidades e localidades. Verifique o servidor.");
+                alert("Erro ao identificar entidades. Verifique o servidor.");
             }
         });
     });
+
+    // Função para renderizar as entidades identificadas
+    function renderEntities(entities) {
+        let html = '<div class="coluna">';
+        if (entities.topicos && entities.topicos.length > 0) {
+            html += '<h2>Tópicos Principais:</h2><ul>';
+            entities.topicos.forEach(topico => {
+                html += `<li>${topico}</li>`;
+            });
+            html += '</ul>';
+        }
+        if (entities.resumo) {
+            html += `<h2>Resumo:</h2><p>${entities.resumo}</p>`;
+        }
+        if (entities.pessoas && entities.pessoas.length > 0) {
+            html += '<h2>Pessoas e Organizações:</h2><ul>';
+            entities.pessoas.forEach(pessoa => {
+                html += `
+                    <li class="entidade">
+                        <strong>${pessoa.entidade}</strong>
+                        <span class="emoji">
+                            ${pessoa.sentimento > 0.05 ? '😊' : pessoa.sentimento < -0.05 ? '😠' : '😐'}
+                        </span>
+                        ${pessoa.imagem ? `<img src="${pessoa.imagem}" alt="${pessoa.entidade}" class="imagem-miniatura">` : ''}
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+        if (entities.localizacoes && entities.localizacoes.length > 0) {
+            html += '<h2>Localizações:</h2><ul>';
+            entities.localizacoes.forEach(loc => {
+                html += `
+                    <li class="entidade">
+                        <strong>${loc.entidade}</strong>
+                        <span class="emoji">
+                            ${loc.sentimento > 0.05 ? '😊' : loc.sentimento < -0.05 ? '😠' : '😐'}
+                        </span>
+                        ${loc.imagem ? `<img src="${loc.imagem}" alt="${loc.entidade}" class="imagem-miniatura">` : ''}
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+        html += '</div>';
+        return html;
+    }
 });

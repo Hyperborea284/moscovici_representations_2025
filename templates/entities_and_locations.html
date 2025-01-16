@@ -1,9 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Entidades e Localidades</title>
+
+    <!-- Folha de estilo principal -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Scripts e estilos do Leaflet (retirados de mapa.html) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+
+    <style>
+        .leaflet-container {
+            font-size: 1rem;
+        }
+        #map {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            left: 0;
+            top: 0;
+        }
+    </style>
+</head>
+<body>
 <div class="container">
     <h1>Entidades e Localidades</h1>
 
-    <!-- Tópicos Principais -->
+    <!-- Principais Tópicos -->
     <div class="coluna">
-        <h2>Tópicos Principais:</h2>
+        <h2>Principais Tópicos</h2>
         <ul>
             {% for topico in entities.topicos %}
             <li>{{ topico }}</li>
@@ -13,71 +47,92 @@
 
     <!-- Resumo -->
     <div class="coluna">
-        <h2>Resumo:</h2>
+        <h2>Resumo</h2>
         <p>{{ entities.resumo }}</p>
     </div>
 
-    <!-- Pessoas e Organizações -->
+    <!-- Pessoas + imagens -->
     <div class="coluna">
-        <h2>Pessoas e Organizações:</h2>
+        <h2>Pessoas e Organizações</h2>
         <ul>
             {% for pessoa in entities.pessoas %}
-                <li class="entidade">
-                    <strong>{{ pessoa.entidade }}</strong>
-                    <span class="emoji">
-                        {% if pessoa.sentimento > 0.05 %}
-                            😊
-                        {% elif pessoa.sentimento < -0.05 %}
-                            😠
-                        {% else %}
-                            😐
-                        {% endif %}
-                    </span>
-                    {% if pessoa.imagem %}
-                        <img 
-                            src="{{ pessoa.imagem }}" 
-                            alt="{{ pessoa.entidade }}" 
-                            class="imagem-miniatura"
-                        >
+            <li class="entidade">
+                <strong>{{ pessoa.entidade }}</strong>
+                <span class="emoji">
+                    {% if pessoa.sentimento > 0.05 %}
+                        😊
+                    {% elif pessoa.sentimento < -0.05 %}
+                        😠
+                    {% else %}
+                        😐
                     {% endif %}
-                </li>
+                </span>
+                {% if pessoa.imagem %}
+                    <img 
+                        src="{{ pessoa.imagem }}" 
+                        alt="{{ pessoa.entidade }}" 
+                        class="imagem-miniatura"
+                    />
+                {% endif %}
+            </li>
             {% endfor %}
         </ul>
     </div>
 
-    <!-- Localizações -->
+    <!-- Localidades + imagens -->
     <div class="coluna">
-        <h2>Localizações:</h2>
+        <h2>Localidades</h2>
         <ul>
             {% for loc in entities.localizacoes %}
-                <li class="entidade">
-                    <strong>{{ loc.entidade }}</strong>
-                    <span class="emoji">
-                        {% if loc.sentimento > 0.05 %}
-                            😊
-                        {% elif loc.sentimento < -0.05 %}
-                            😠
-                        {% else %}
-                            😐
-                        {% endif %}
-                    </span>
-                    {% if loc.imagem %}
-                        <img 
-                            src="{{ loc.imagem }}" 
-                            alt="{{ loc.entidade }}" 
-                            class="imagem-miniatura"
-                        >
+            <li class="entidade">
+                <strong>{{ loc.entidade }}</strong>
+                <span class="emoji">
+                    {% if loc.sentimento > 0.05 %}
+                        😊
+                    {% elif loc.sentimento < -0.05 %}
+                        😠
+                    {% else %}
+                        😐
                     {% endif %}
-                </li>
+                </span>
+                {% if loc.imagem %}
+                    <img 
+                        src="{{ loc.imagem }}" 
+                        alt="{{ loc.entidade }}" 
+                        class="imagem-miniatura"
+                    />
+                {% endif %}
+            </li>
             {% endfor %}
         </ul>
     </div>
 
-    <!-- Mapa de Localizações -->
+    <!-- Mapa contendo Localidades -->
     <div class="coluna">
-        <h2>Mapa de Localizações:</h2>
-        <div class="mapa-container">
-            <iframe src="/mapa" width="100%" height="100%"></iframe>
-        </div>
+        <h2>Mapa de Localizações</h2>
+        <!-- Aqui substituímos o iframe antigo pelo próprio mapa -->
+        <div id="map"></div>
     </div>
 </div>
+
+<!-- Script adicional para carregar marcadores dinamicamente, se desejar -->
+<script>
+    // Exemplo simples de inicialização de um mapa Leaflet sem conteúdo hard-coded:
+    var map = L.map('map').setView([-15.0, -50.0], 4);  // Posição inicial genérica
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Exemplo: se quisermos plotar as entidades localizáveis com lat/long vindas do back-end,
+    // poderíamos iterar sobre elas via script gerado no Python. Caso a geolocalização
+    // já tenha sido feita, bastaria inserir algo como:
+    //
+    //   var marker = L.marker([lat, lon]).addTo(map);
+    //   marker.bindPopup("Entidade: X, Sentimento: Y").openPopup();
+    //
+    // Este script ficaria a cargo do back-end, repassando lat/long. O essencial
+    // é que não há mais iframe, e sim o próprio Leaflet integrado no template.
+</script>
+</body>
+</html>

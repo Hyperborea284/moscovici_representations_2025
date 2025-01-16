@@ -1,0 +1,34 @@
+INcorporar o gerado de relatórios pdf e propagar, cumulativamente, as análises heurísticas de cada módulo no backend. Inserir uma ativação da api openaai + serpAi com fallbaks em outras apis, para robustecer a análise de conjuntura, inclir no pdf gerado
+
+análise das fontes + arquivos bib + tex + pdf
+
+análise das entidades + ativações das api maltego
+
+análise linguística + vinda do script de representações ; complexidade lexical 
+
+análise de sentimentos (mais algoritmos) + idade mental presumida
+
+análise de timeline; cenários possíveis imediato, curto, médio e longo prazos: + resumo e análise das entidades
+
+
+								Cenário Menos provável	Cenário Normal	Cenário Mais provável
+Pior cenário possível 
+Cenário Mediano
+Melhor cenário possível 
+
+
+
+
+Gere uma ativaçao do prompt da api da openai o qual recebera uma lista de topicos elaborada por from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans, um resumo elaborado  bert-summarizer, e uma linha do tempo em xml compativel com o timeline 2.9.0. Partindo dai, considere que este devera retornar uma texto estruturado prevendo cenarios que se organizam seguindo este diagrama de tres por tres colunas análise de timeline; cenários possíveis imediato, curto, médio e longo prazos: + resumo e análise das entidades
+
+
+								Cenário Menos provável	Cenário Normal	Cenário Mais provável
+Pior cenário possível 
+Cenário Mediano
+Melhor cenário possível   ademais; apresente links para textos desclassificados de inteligencia e textos academicos revisados por pares, os quais fundamentem este tipo de elaboraçao de cenarios
+
+
+
+
+apresente textos desclassificados da area de inteligencia e textos revisados por pares que realizam analises identicas ou similares a esta.

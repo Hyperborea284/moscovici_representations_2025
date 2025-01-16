@@ -1,58 +1,37 @@
-Partindo destes codigos, esta aplicaçao web a qual possui três abas, cada uma associada à um 
-mecanismo de análise de conteúdos (análise de sentimentos, Representações Sociais, Geração de timeline), 
-sendo estes ingeridos por três mecanismos (Texto copiado, texto raspado de links e arquivo txt); 
-estas funcionalidades não devem ser removidas, alteradas, omitidas, sendo preservadas à todo custo, de 
-maneira cumulativa e convergente. Preserve ipsis litteris as partes não afetadas diretamente pelas alterações, 
-não desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente 
-das alteraçoes.
+Partindo destes codigos, esta aplicaçao web a qual realiza diversas análises em um corpus de texto; esta possui quatro abas, cada uma associada à um mecanismo de análise de conteúdos (Entidades e Localidades, Geração de timeline, Análise de sentimentos e Representações Sociais), sendo estes textos inseridos na aplicação por três mecanismos (Texto copiado, texto raspado de links e arquivo txt), os quais pode montar um corpus unificado de texto; estas funcionalidades não devem ser removidas, alteradas, omitidas, sendo preservadas à todo custo, de maneira cumulativa e convergente.
 
-Deve haver uma alteração no mecanismo de construção do corpus de texto analisado, onde a detecção da existência 
-de mais de uma fonte de texto, a qual gera um popup indicando ao usuário, o conflito entre as fontes, deve 
-sugerir a possibilidade de se usar todas as fontes, simultâneamente, para compor um corpus de texto unificado.
+Preserve ipsis litteris as partes não afetadas diretamente pelas alterações, não desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes propostas.
 
-Esta ativação do arquivo entity_finder.py, visa a identificação das entidades, e deve ocorrer de 
-maneira automática, em cada situação de texto postado, independente de qual das fontes seja usada para 
-compor o corpus de texto analisado.
-
-Partindo destas condições, temos que gerar uma nova aba, a qual acionará um quarto backend, 
-sendo este responsável pela identificação de entidades, pessoas e localidades, neste corpus de texto 
-definido pelo mecanismo anteriror, seja qual mecanismo de ingestão de conteúdo que for, único ou compartillhado. 
-Eata ativação funcionará gerando uma visualização das informações:
+Esta ativação do arquivo entity_finder.py, visa a identificação das entidades. Nesta aba, "Entidades e Localidades" haverá um botão o qual acionará o respectivo backend, sendo este responsável pela identificação de entidades, pessoas e localidades, neste corpus de texto definido pelo mecanismo de ingestão anterior, seja qual mecanismo de ingestão de conteúdo que for, único ou compartillhado. Esta ativação funcionará gerando uma visualização das informações, apresentada na aba de entidades e localizações:
 
 a) Principais tópicos
 b) Resumo
-c) Pessoas 
-d) Entidades
-e) Localiddes
-f) Mapa
+c) Pessoas + imagens respectivas
+d) Entidades + imagens respectivas
+e) Mapa contendo as Localidades + imagens respectivas
 
-Estas informações deverão ser compartilhadas com as outras aplicações, para fins de contexto ativados em 
-alterações posteriores.
+Sobre as entidades: Deve haver um fallback para colocar um mecanismo de colocar um placeholder para as imagens não disponibilizadas pela serpApi, visto que as ativações anteriores já esgotaram a quantidade de chamados neste mês, mas sabemos que a implementação apresentada funciona. Apenas verifique se existe alguma duplicação nest ativação, caso exista duplicação, sintetize tudo num chamado apenas.
 
-Deve haver uma aba "Entidades e Localidades" ,sendo a primeira ao lado das tres presentes i.e. 
-'Analise de sentimentos', 'Representaçao Social', 'Geraçao de timeline'. Esta inicialmente 
-devera estar em branco, e, apos a ativaçao da ingestao de texto com a ativaçao do botao 'Enviar conteudo', 
-este deve ser populado com os conteudos gerados por entity_finder.py, nesta ordem 
+Para montar este mapa use:
 
-a) Principais tópicos
-b) Resumo
-c) Pessoas 
-d) Entidades
-e) Localiddes
-f) Mapa
+import folium
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
-Esta visualização, deve aproveitar dos elementos funcionais em entities_and_locations.html, e este html
-deve ser importado como parte do index.html, não sendo renderizado como uma página completa,
-estas funcionalidades devem ser fundidas na aba "Entidades e Localidades", onde serão apresentados.
+De maneira a garantir que este será gerado dinâmicamente com os dados de licalização obtidos pela ativação acima, associada à ativação das apis.
+Este mapa têm de ser dinâmicamente gerado e não pode ter informações hard-coded,  para tanto, as funcionalidades do html mapa, devem ser fundidas no html entities_and_location.html, de maneira à descartar o uso do arquivo mapa.html, deste, deve-se aproveitar a estética e os elementos visuais.
 
-Garanta a aplicação convergente e cumulativa dos elementos estetitcos, funcionais e estilisticos 
-do projeto original, se sobrepondo aos elementos estilísticos da aplicação de entidades.
+Estas informações a/b/c/d/e/ deverão ser compartilhadas no objeto 'shared_content' com as outras aplicações, para fins de contexto ativados em alterações posteriores.
 
-Preserve todas as caracteristicas, de maneira cumulativa e convergente. Preserve ipsis litteris 
-as partes na afetadas diretamente pela alteraçao, nao desidrate, remova, retire, omita trechos e 
-funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes.
+Para tanto, altere o mecanismo de identificação das entidades para se assegurar que:
 
+1) A ativação do arquivo entity_finder.py se dê quando ocorrer a ativação do botão 'Identificar entidades'; no presente momento a ativação deste se dá quando a aba é clicada, tal funcionalidade deve ser removida
 
+2) Importantíssimo: A aba "Geração de Timeline" já apresenta uma lista das timelines geradas e um botão para a geração de uma nova timeline, com os dados do corpus de texto carregado, estas funcionalidades devem ser preservadas. Além disso, a visualização das timelines, quando estas são selecionadas ou geradas, através da renderização específica envolvendo timeline.js, timeline.html e o arquivo xml selecionado, deve ser reimplementada. As funcionalidades para tanto já constam nos respectivos arquivos. Esta funcionalidade foi perdida em uma alteração anterior e precisa ser recomposta. Todos os elementos estilísticos, estéticos, linhas verticais, linhas de data horizontal e no topo, caixa indicando as categorias, sobreposições usadas na composição da linha do tempo devem ser perservados. Fora deste html dinâmicamente gerado, o botão 'Gerar Timeline' e o meu dropdown 'Timelines disponíveis' devem estar no mesmo alinhamento que os botões nas outras abas.
+
+Garanta a aplicação convergente e cumulativa dos elementos estétitcos, funcionais e estilisticos do projeto original.
+
+Preserve todas as caracteristicas, de maneira cumulativa e convergente. Preserve ipsis litteris as partes na afetadas diretamente pela alteraçao, nao desidrate, remova, retire, omita trechos e funcionalidades, garanta a incorporaçao cumulativa e convergente das alteraçoes. Apresente a versão completa e corrigida dos códigos convergentes, contendo as alterações cumulativas.
 
 
 ├── app.py
@@ -115,6 +94,10 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
 
+serp_api_key = os.getenv("SERP_API_KEY")
+if not serp_api_key:
+    raise ValueError("A chave da API não foi encontrada. Verifique o arquivo .env.")
+
 # Inicializar o Flask
 app = Flask(__name__)
 
@@ -124,7 +107,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Inicializar o EntityClassifier com a chave da OpenAI
-entity_classifier = EntityClassifier(openai_api_key)
+entity_classifier = EntityClassifier(openai_api_key, serp_api_key)
 
 # Variável global para armazenar conteúdo compartilhado
 shared_content = {
@@ -192,9 +175,6 @@ def ingest_content():
         shared_content["timestamp"] = analysis_ts
         shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
 
-        # Processar texto para identificar entidades
-        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
-
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Erro durante a ingestão de conteúdo: {e}")
@@ -258,7 +238,8 @@ def reset_content():
         "html_dynamic": None, 
         "algorithm": None, 
         "bad_links": [],
-        "timeline_file": None
+        "timeline_file": None,
+        "entities": None  # Resetar entidades também
     }
     return jsonify({"status": "success"})
 
@@ -339,12 +320,20 @@ def process():
     )
 
 # >>>>>>> ROTAS DAS ENTIDADES E MAPA <<<<<<<
-@app.route('/entities_and_locations')
-def entities_and_locations():
-    if not shared_content.get("entities"):
-        return jsonify({"error": "Nenhuma entidade encontrada"}), 400
+@app.route('/identify_entities', methods=['POST'])
+def identify_entities():
+    """Rota para identificar entidades e localidades."""
+    global shared_content
+    if not shared_content.get("text"):
+        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
 
-    return render_template('entities_and_locations.html', entities=shared_content["entities"])
+    try:
+        # Processar texto para identificar entidades
+        shared_content["entities"] = process_text(shared_content["text"], entity_classifier)
+        return jsonify({"status": "success", "entities": shared_content["entities"]})
+    except Exception as e:
+        print(f"Erro durante a identificação de entidades: {e}")
+        return jsonify({"error": "Erro ao identificar entidades"}), 500
 
 # >>>>>>> ROTAS DA TIMELINE <<<<<<<
 @app.route('/generate_timeline', methods=['POST'])
@@ -453,6 +442,212 @@ if __name__ == "__main__":
     print(">>> Iniciando aplicação Flask em modo debug.")
     app.run(debug=True)
 
+entity_finder.py  
+import spacy
+from summarizer import Summarizer
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+import numpy as np
+import folium
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import time
+import requests
+import json
+from openai import OpenAI
+
+class EntityClassifier:
+    """
+    Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
+    e de busca de imagem (etapa 2), utilizando a SerpAPI como abordagem principal.
+    """
+    def __init__(self, openai_api_key, serp_api_key):
+        self.openai_client = OpenAI(api_key=openai_api_key)
+        self.nlp = spacy.load("pt_core_news_sm")
+        self.bert_model = Summarizer()
+        self.sia = SentimentIntensityAnalyzer()
+        self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
+        self.serp_api_key = serp_api_key
+
+    def classificar_em_bloco(self, entidades_unicas):
+        """
+        Faz uma única chamada à API da OpenAI para classificar uma lista de entidades.
+        Retorna um dicionário {entidade: {"tipo":..., "local":...}}.
+        """
+        print(">>> [ETAPA 1] classificar_entidades_em_bloco: Iniciando classificação em lote...")
+
+        try:
+            # Prompt que enfatiza a unicidade das entidades
+            prompt_str = """
+            Você receberá uma lista de entidades (pessoas, organizações ou localizações).
+            Sintetize estas de maneira a eliminar duplicidades, verifique cada elemento, 
+            identifique se este se trata de uma pessoa, organização ou localização e categorize-as.
+            1) NÃO retorne entidades duplicadas. Cada entidade só pode aparecer uma única vez.
+            2) Responda estritamente em JSON, no formato:
+            {
+                "resultado": [
+                    {"entidade": "...", "tipo": "pessoa|organizacao|localizacao|desconhecido", "local": "... ou null"},
+                    ...
+                ]
+            }
+            Analise todas as entidades de entrada, garantindo a unicidade e se assegurando de 
+            que cada uma apareça exatamente uma vez no array 'resultado', associada à sua respectiva categorização.
+            """
+
+            prompt_entidades = "Lista de entidades:\n" + "\n".join([f"- {e}" for e in entidades_unicas])
+            prompt_final = prompt_str + "\n\n" + prompt_entidades
+
+            print(">>> [ETAPA 1] classificar_entidades_em_bloco: Enviando para OpenAI GPT-4...")
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt_final}]
+            )
+            conteudo = response.choices[0].message.content
+            print("\n--- Resposta da API (etapa 1) ---")
+            print(conteudo)
+
+            data = json.loads(conteudo)
+            classif_dict = {}
+            for item in data.get("resultado", []):
+                ent = item.get("entidade", "")
+                tipo_raw = item.get("tipo", "desconhecido")
+                loc_raw = item.get("local", None)
+
+                tipo_map = {
+                    "pessoa": "pessoa",
+                    "organizacao": "organização",
+                    "localizacao": "localização",
+                    "desconhecido": "desconhecido"
+                }
+                tipo_final = tipo_map.get(tipo_raw, "desconhecido")
+                loc_final = loc_raw if loc_raw != "null" else None
+                classif_dict[ent] = {
+                    "tipo": tipo_final,
+                    "local": loc_final
+                }
+
+            print(">>> [ETAPA 1] Classificação em lote concluída.")
+            return classif_dict
+
+        except Exception as e:
+            print(f"Erro na classificação em bloco: {e}")
+            return {}
+
+    def buscar_imagem_serpapi(self, query, tipo):
+        """
+        Busca de imagem na SerpAPI.
+        """
+        print(f">>> [ETAPA 2] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
+        try:
+            params = {
+                "q": f"{query} {tipo}",
+                "tbm": "isch",
+                "api_key": self.serp_api_key
+            }
+            response = requests.get("https://serpapi.com/search", params=params)
+            if response.status_code == 200:
+                results = response.json()
+                if "images_results" in results and len(results["images_results"]) > 0:
+                    first_thumb = results["images_results"][0]["thumbnail"]
+                    print(f">>> [ETAPA 2] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
+                    return first_thumb
+            print(f">>> [ETAPA 2] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
+            return None
+        except Exception as e:
+            print(f"Erro na SerpAPI: {e}")
+            return None
+
+def process_text(text, classifier):
+    """
+    Processa o texto para identificar entidades, sumarizar e gerar tópicos.
+    """
+    print(">>> Iniciando processamento de texto...")
+    doc = classifier.nlp(text)
+    entidades = [ent.text for ent in doc.ents]
+    print(f">>> Entidades detectadas: {entidades}")
+
+    # Classificação em lote
+    entidades_unicas = list(set(entidades))
+    classificacoes = classifier.classificar_em_bloco(entidades_unicas)
+
+    entidades_classificadas = []
+    for ent in entidades:
+        if ent in classificacoes:
+            etype = classificacoes[ent]["tipo"]
+            elocal = classificacoes[ent]["local"]
+            entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
+        else:
+            entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
+
+    # Separar entidades em pessoas/organizações e localizações
+    pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
+    localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
+
+    # Análise de sentimento
+    pessoas_organizacoes_com_sentimento = []
+    for entidade_info in pessoas_organizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        pessoas_organizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    localizacoes_com_sentimento = []
+    for entidade_info in localizacoes:
+        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
+        localizacoes_com_sentimento.append({
+            **entidade_info,
+            "sentimento": sentimento['compound']
+        })
+
+    # Geração de resumo com BERT
+    resumo = classifier.bert_model(text)
+
+    # Clustering de tópicos
+    frases = [sent.text for sent in doc.sents]
+    if len(frases) > 1:
+        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+        X = vectorizer.fit_transform(frases)
+        num_clusters = min(3, len(frases))
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+        kmeans.fit(X)
+        clusters = kmeans.labels_
+
+        topicos = {}
+        for i, c in enumerate(clusters):
+            if c not in topicos:
+                topicos[c] = []
+            topicos[c].append(frases[i])
+
+        topicos_principais = []
+        for c in topicos:
+            centroide = np.mean(X[clusters == c], axis=0)
+            indice_representante = np.argmin(
+                np.linalg.norm(X[clusters == c] - centroide, axis=1)
+            )
+            topicos_principais.append(topicos[c][indice_representante])
+    else:
+        topicos_principais = ["Não há frases suficientes para clustering."]
+
+    # Busca de imagens para cada entidade
+    pessoas_organizacoes_com_imagens = []
+    for entidade_info in pessoas_organizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], entidade_info["tipo"])
+        pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    localizacoes_com_imagens = []
+    for entidade_info in localizacoes_com_sentimento:
+        image_link = classifier.buscar_imagem_serpapi(entidade_info["entidade"], "localização")
+        localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
+
+    return {
+        "pessoas": pessoas_organizacoes_com_imagens,
+        "localizacoes": localizacoes_com_imagens,
+        "resumo": resumo,
+        "topicos": topicos_principais
+    }
 
 index.html  
 <!DOCTYPE html>
@@ -543,7 +738,17 @@ index.html
         <!-- Abas para as análises e para a timeline -->
         <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link active" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="true">
+                <button class="nav-link active" id="entities-tab" data-bs-toggle="tab" data-bs-target="#entities" type="button" role="tab" aria-controls="entities" aria-selected="true">
+                    Entidades e Localidades
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
+                    Geração de Timeline
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="false">
                     Análise de Sentimentos
                 </button>
             </li>
@@ -552,17 +757,35 @@ index.html
                     Representação Social
                 </button>
             </li>
-            <!-- Aba para Geração de Timeline -->
-            <li class="nav-item">
-                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab" data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
-                    Geração de Timeline
-                </button>
-            </li>
         </ul>
 
         <div class="tab-content mt-3">
+            <!-- Aba de Entidades e Localidades -->
+            <div class="tab-pane fade show active" id="entities" role="tabpanel" aria-labelledby="entities-tab">
+                <button type="button" id="identifyEntitiesBtn" class="btn btn-primary mt-3">Identificar Entidades</button>
+                <div id="entitiesResults" class="mt-3">
+                    <!-- O conteúdo de entidades e localidades será inserido aqui via AJAX -->
+                </div>
+            </div>
+
+            <!-- Aba de Geração de Timeline -->
+            <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
+                <form id="timelineForm">
+                    <div class="mb-3">
+                        <label for="timelineDropdown" class="form-label">Timelines Disponíveis</label>
+                        <select id="timelineDropdown" name="timelineDropdown" class="form-select" onfocus="loadTimelineList()">
+                            <!-- As timelines serão carregadas aqui via JavaScript -->
+                        </select>
+                    </div>
+                    <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
+                </form>
+                <div id="timelineResults" class="mt-3">
+                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
+                </div>
+            </div>
+
             <!-- Aba de Análise de Sentimentos -->
-            <div class="tab-pane fade show active" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
+            <div class="tab-pane fade" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
                 <form id="sentimentForm">
                     <div class="mb-3">
                         <label for="algorithm" class="form-label">Selecione o Algoritmo</label>
@@ -607,23 +830,6 @@ index.html
                 </form>
                 <div id="contentResults" class="mt-3"></div>
             </div>
-
-            <!-- Aba de Geração de Timeline -->
-            <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
-                <form id="timelineForm">
-                    <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
-                </form>
-                <div id="timelineResults" class="mt-3">
-                    <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
-                </div>
-                <!-- Lista de timelines disponíveis -->
-                <div id="timelineList" class="mt-3">
-                    <h4>Timelines Disponíveis</h4>
-                    <ul id="timelineFiles" class="list-group">
-                        <!-- As timelines serão carregadas aqui via JavaScript -->
-                    </ul>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -642,6 +848,29 @@ index.html
 </html>
 
 app.js  
+// Função para carregar a lista de timelines disponíveis (agora global)
+function loadTimelineList() {
+    $.ajax({
+        url: '/list_timelines', // Rota para listar os arquivos de timeline
+        type: 'GET',
+        success: function (data) {
+            const timelineDropdown = $('#timelineDropdown');
+            timelineDropdown.empty(); // Limpa o dropdown atual
+            if (data.timelines && data.timelines.length > 0) {
+                data.timelines.forEach(timeline => {
+                    const option = $(`<option value="${timeline}">${timeline}</option>`);
+                    timelineDropdown.append(option);
+                });
+            } else {
+                timelineDropdown.append('<option value="">Nenhuma timeline disponível</option>');
+            }
+        },
+        error: function () {
+            alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
+        }
+    });
+}
+
 $(document).ready(function () {
     const ingestContent = $('#ingestContent');
     const fixedContent = $('#fixedContent');
@@ -649,32 +878,6 @@ $(document).ready(function () {
     const timestamp = $('#timestamp');
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
-
-    // Função para carregar a lista de timelines disponíveis
-    function loadTimelineList() {
-        $.ajax({
-            url: '/list_timelines', // Rota para listar os arquivos de timeline
-            type: 'GET',
-            success: function (data) {
-                const timelineFiles = $('#timelineFiles');
-                timelineFiles.empty(); // Limpa a lista atual
-                if (data.timelines && data.timelines.length > 0) {
-                    data.timelines.forEach(timeline => {
-                        const listItem = $(`<li class="list-group-item">${timeline}</li>`);
-                        listItem.on('click', function () {
-                            loadTimeline(timeline); // Carrega a timeline selecionada
-                        });
-                        timelineFiles.append(listItem);
-                    });
-                } else {
-                    timelineFiles.append('<li class="list-group-item">Nenhuma timeline disponível.</li>');
-                }
-            },
-            error: function () {
-                alert("Erro ao carregar a lista de timelines. Verifique o servidor.");
-            }
-        });
-    }
 
     // Função para carregar uma timeline específica
     function loadTimeline(filename) {
@@ -1033,22 +1236,72 @@ $(document).ready(function () {
         });
     });
 
-    // Carregar entidades e localidades ao abrir a aba
-    $('#entities-tab').on('click', function () {
+    // Botão de Identificar Entidades
+    $('#identifyEntitiesBtn').on('click', function () {
         $.ajax({
-            url: '/entities_and_locations',
-            type: 'GET',
+            url: '/identify_entities',
+            type: 'POST',
             success: function (data) {
-                $('#entitiesResults').html(data);
+                if (data.status === "success") {
+                    // Atualiza o conteúdo da aba com as entidades identificadas
+                    $('#entitiesResults').html(renderEntities(data.entities));
+                } else {
+                    alert("Erro ao identificar entidades. Verifique o servidor.");
+                }
             },
             error: function () {
-                alert("Erro ao carregar entidades e localidades. Verifique o servidor.");
+                alert("Erro ao identificar entidades. Verifique o servidor.");
             }
         });
     });
+
+    // Função para renderizar as entidades identificadas
+    function renderEntities(entities) {
+        let html = '<div class="coluna">';
+        if (entities.topicos && entities.topicos.length > 0) {
+            html += '<h2>Tópicos Principais:</h2><ul>';
+            entities.topicos.forEach(topico => {
+                html += `<li>${topico}</li>`;
+            });
+            html += '</ul>';
+        }
+        if (entities.resumo) {
+            html += `<h2>Resumo:</h2><p>${entities.resumo}</p>`;
+        }
+        if (entities.pessoas && entities.pessoas.length > 0) {
+            html += '<h2>Pessoas e Organizações:</h2><ul>';
+            entities.pessoas.forEach(pessoa => {
+                html += `
+                    <li class="entidade">
+                        <strong>${pessoa.entidade}</strong>
+                        <span class="emoji">
+                            ${pessoa.sentimento > 0.05 ? '😊' : pessoa.sentimento < -0.05 ? '😠' : '😐'}
+                        </span>
+                        ${pessoa.imagem ? `<img src="${pessoa.imagem}" alt="${pessoa.entidade}" class="imagem-miniatura">` : ''}
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+        if (entities.localizacoes && entities.localizacoes.length > 0) {
+            html += '<h2>Localizações:</h2><ul>';
+            entities.localizacoes.forEach(loc => {
+                html += `
+                    <li class="entidade">
+                        <strong>${loc.entidade}</strong>
+                        <span class="emoji">
+                            ${loc.sentimento > 0.05 ? '😊' : loc.sentimento < -0.05 ? '😠' : '😐'}
+                        </span>
+                        ${loc.imagem ? `<img src="${loc.imagem}" alt="${loc.entidade}" class="imagem-miniatura">` : ''}
+                    </li>`;
+            });
+            html += '</ul>';
+        }
+        html += '</div>';
+        return html;
+    }
 });
 
-app.css
+app.css  
 /* Estilos gerais */
 body {
     font-family: Arial, sans-serif;
@@ -1182,348 +1435,988 @@ button:hover {
     }
 }
 
-entity_finder.py  
-import spacy
-from summarizer import Summarizer
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import KMeans
-import numpy as np
-import folium
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
-import time
-import requests
-import json
-from openai import OpenAI
+entities_and_locations.html  
+<div class="container">
+    <h1>Entidades e Localidades</h1>
 
-class EntityClassifier:
-    """
-    Classe responsável por gerenciar as etapas de classificação em lote (etapa 1)
-    e de busca de imagem (etapa 2), incluindo fallback na SerpAPI caso a OpenAI
-    não retorne uma imagem.
-    """
-
-    def __init__(self, openai_api_key):
-        self.openai_client = OpenAI(api_key=openai_api_key)
-        self.nlp = spacy.load("pt_core_news_sm")
-        self.bert_model = Summarizer()
-        self.sia = SentimentIntensityAnalyzer()
-        self.geolocator = Nominatim(user_agent="my_flask_app/1.0")
-
-    def classificar_em_bloco(self, entidades_unicas):
-        """
-        Faz uma única chamada à API da OpenAI para classificar uma lista de entidades.
-        Retorna um dicionário {entidade: {"tipo":..., "local":...}}.
-        """
-        print(">>> [ETAPA 1] classificar_entidades_em_bloco: Iniciando classificação em lote...")
-
-        try:
-            # Prompt que enfatiza a unicidade das entidades
-            prompt_str = """
-            Você receberá uma lista de entidades (pessoas, organizações ou localizações).
-            1) NÃO retorne duplicados. Cada entidade só deve aparecer uma única vez.
-            2) Responda estritamente em JSON, no formato:
-            {
-                "resultado": [
-                    {"entidade": "...", "tipo": "pessoa|organizacao|localizacao|desconhecido", "local": "... ou null"},
-                    ...
-                ]
-            }
-            Liste todas as entidades de entrada, garantindo que cada uma apareça exatamente uma vez no array 'resultado'.
-            """
-
-            prompt_entidades = "Lista de entidades:\n" + "\n".join([f"- {e}" for e in entidades_unicas])
-            prompt_final = prompt_str + "\n\n" + prompt_entidades
-
-            print(">>> [ETAPA 1] classificar_entidades_em_bloco: Enviando para OpenAI GPT-4...")
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt_final}]
-            )
-            conteudo = response.choices[0].message.content
-            print("\n--- Resposta da API (etapa 1) ---")
-            print(conteudo)
-
-            data = json.loads(conteudo)
-            classif_dict = {}
-            for item in data.get("resultado", []):
-                ent = item.get("entidade", "")
-                tipo_raw = item.get("tipo", "desconhecido")
-                loc_raw = item.get("local", None)
-
-                tipo_map = {
-                    "pessoa": "pessoa",
-                    "organizacao": "organização",
-                    "localizacao": "localização",
-                    "desconhecido": "desconhecido"
-                }
-                tipo_final = tipo_map.get(tipo_raw, "desconhecido")
-                loc_final = loc_raw if loc_raw != "null" else None
-                classif_dict[ent] = {
-                    "tipo": tipo_final,
-                    "local": loc_final
-                }
-
-            print(">>> [ETAPA 1] Classificação em lote concluída.")
-            return classif_dict
-
-        except Exception as e:
-            print(f"Erro na classificação em bloco: {e}")
-            return {}
-
-    def buscar_imagem(self, query, tipo):
-        """
-        Tenta obter um link de imagem da OpenAI (etapa 2). Em caso de falha ou erro
-        no conteúdo retornado, faz o fallback para a SerpAPI.
-        """
-        print(f">>> [ETAPA 2] buscar_imagem: Buscando imagem para '{query}' como '{tipo}' usando GPT-4...")
-        try:
-            prompt = f"""
-            Você é um sistema que retorna links de imagens.
-            Entrada: '{query}' (tipo: {tipo})
-            Retorne estritamente em JSON, no formato:
-            {{
-                "imagem_url": "https://exemplo-de-imagem.jpg"
-            }}
-            Dê preferência a links representativos e recentes.
-            """
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            conteudo = response.choices[0].message.content
-            print("\n--- Resposta da API (etapa 2) ---")
-            print(conteudo)
-
-            data = json.loads(conteudo)
-            imagem_url = data.get("imagem_url", None)
-            if not imagem_url or not imagem_url.startswith("http"):
-                print(f">>> [ETAPA 2] buscar_imagem: Nenhum link válido via OpenAI; fallback para SerpAPI.")
-                return self.buscar_imagem_serpapi(query, tipo)
-
-            print(f">>> [ETAPA 2] buscar_imagem: Link retornado para '{query}': {imagem_url}")
-            return imagem_url
-
-        except Exception as e:
-            print(f"Erro ao buscar imagem pela OpenAI: {e}")
-            print(">>> [ETAPA 2] buscando imagem pela SerpAPI como fallback.")
-            return self.buscar_imagem_serpapi(query, tipo)
-
-    def buscar_imagem_serpapi(self, query, tipo):
-        """
-        Fallback para busca de imagem na SerpAPI.
-        """
-        print(f">>> [FALLBACK] buscar_imagem_serpapi: Buscando imagem para '{query}' como '{tipo}' via SerpAPI...")
-        try:
-            params = {
-                "q": f"{query} {tipo}",
-                "tbm": "isch",
-                "api_key": "sua_chave_serpapi_aqui"
-            }
-            response = requests.get("https://serpapi.com/search", params=params)
-            if response.status_code == 200:
-                results = response.json()
-                if "images_results" in results and len(results["images_results"]) > 0:
-                    first_thumb = results["images_results"][0]["thumbnail"]
-                    print(f">>> [FALLBACK] buscar_imagem_serpapi: Imagem encontrada para '{query}': {first_thumb}")
-                    return first_thumb
-            print(f">>> [FALLBACK] buscar_imagem_serpapi: Nenhuma imagem encontrada para '{query}'.")
-            return None
-        except Exception as e:
-            print(f"Erro na SerpAPI: {e}")
-            return None
-
-def process_text(text, classifier):
-    """
-    Processa o texto para identificar entidades, sumarizar e gerar tópicos.
-    """
-    print(">>> Iniciando processamento de texto...")
-    doc = classifier.nlp(text)
-    entidades = [ent.text for ent in doc.ents]
-    print(f">>> Entidades detectadas: {entidades}")
-
-    # Classificação em lote
-    entidades_unicas = list(set(entidades))
-    classificacoes = classifier.classificar_em_bloco(entidades_unicas)
-
-    entidades_classificadas = []
-    for ent in entidades:
-        if ent in classificacoes:
-            etype = classificacoes[ent]["tipo"]
-            elocal = classificacoes[ent]["local"]
-            entidades_classificadas.append({"entidade": ent, "tipo": etype, "local": elocal})
-        else:
-            entidades_classificadas.append({"entidade": ent, "tipo": "desconhecido", "local": None})
-
-    # Separar entidades em pessoas/organizações e localizações
-    pessoas_organizacoes = [e for e in entidades_classificadas if e["tipo"] in ["pessoa", "organização"]]
-    localizacoes = [e for e in entidades_classificadas if e["tipo"] == "localização"]
-
-    # Análise de sentimento
-    pessoas_organizacoes_com_sentimento = []
-    for entidade_info in pessoas_organizacoes:
-        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
-        pessoas_organizacoes_com_sentimento.append({
-            **entidade_info,
-            "sentimento": sentimento['compound']
-        })
-
-    localizacoes_com_sentimento = []
-    for entidade_info in localizacoes:
-        sentimento = classifier.sia.polarity_scores(entidade_info["entidade"])
-        localizacoes_com_sentimento.append({
-            **entidade_info,
-            "sentimento": sentimento['compound']
-        })
-
-    # Geração de resumo com BERT
-    resumo = classifier.bert_model(text)
-
-    # Clustering de tópicos
-    frases = [sent.text for sent in doc.sents]
-    if len(frases) > 1:
-        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
-        X = vectorizer.fit_transform(frases)
-        num_clusters = min(3, len(frases))
-        kmeans = KMeans(n_clusters=num_clusters, random_state=42)
-        kmeans.fit(X)
-        clusters = kmeans.labels_
-
-        topicos = {}
-        for i, c in enumerate(clusters):
-            if c not in topicos:
-                topicos[c] = []
-            topicos[c].append(frases[i])
-
-        topicos_principais = []
-        for c in topicos:
-            centroide = np.mean(X[clusters == c], axis=0)
-            indice_representante = np.argmin(
-                np.linalg.norm(X[clusters == c] - centroide, axis=1)
-            )
-            topicos_principais.append(topicos[c][indice_representante])
-    else:
-        topicos_principais = ["Não há frases suficientes para clustering."]
-
-    # Busca de imagens para cada entidade
-    pessoas_organizacoes_com_imagens = []
-    for entidade_info in pessoas_organizacoes_com_sentimento:
-        if entidade_info["tipo"] == "pessoa":
-            image_link = classifier.buscar_imagem(entidade_info["entidade"], "pessoa")
-        elif entidade_info["tipo"] == "organização":
-            image_link = classifier.buscar_imagem(entidade_info["entidade"], "organização")
-        else:
-            image_link = None
-        pessoas_organizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
-
-    localizacoes_com_imagens = []
-    for entidade_info in localizacoes_com_sentimento:
-        image_link = classifier.buscar_imagem(entidade_info["entidade"], "localização")
-        localizacoes_com_imagens.append({**entidade_info, "imagem": image_link})
-
-    return {
-        "pessoas": pessoas_organizacoes_com_imagens,
-        "localizacoes": localizacoes_com_imagens,
-        "resumo": resumo,
-        "topicos": topicos_principais
-    }
-
-entities_and_locations.html
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entidades e Localidades</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h1>Entidades e Localidades</h1>
-
-        <!-- Tópicos Principais -->
-        <div class="coluna">
-            <h2>Tópicos Principais:</h2>
-            <ul>
-                {% for topico in entities.topicos %}
-                <li>{{ topico }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        <!-- Resumo -->
-        <div class="coluna">
-            <h2>Resumo:</h2>
-            <p>{{ entities.resumo }}</p>
-        </div>
-
-        <!-- Pessoas e Organizações -->
-        <div class="coluna">
-            <h2>Pessoas e Organizações:</h2>
-            <ul>
-                {% for pessoa in entities.pessoas %}
-                    <li class="entidade">
-                        <strong>{{ pessoa.entidade }}</strong>
-                        <span class="emoji">
-                            {% if pessoa.sentimento > 0.05 %}
-                                😊
-                            {% elif pessoa.sentimento < -0.05 %}
-                                😠
-                            {% else %}
-                                😐
-                            {% endif %}
-                        </span>
-                        {% if pessoa.imagem %}
-                            <img 
-                                src="{{ pessoa.imagem }}" 
-                                alt="{{ pessoa.entidade }}" 
-                                class="imagem-miniatura"
-                            >
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        <!-- Localizações -->
-        <div class="coluna">
-            <h2>Localizações:</h2>
-            <ul>
-                {% for loc in entities.localizacoes %}
-                    <li class="entidade">
-                        <strong>{{ loc.entidade }}</strong>
-                        <span class="emoji">
-                            {% if loc.sentimento > 0.05 %}
-                                😊
-                            {% elif loc.sentimento < -0.05 %}
-                                😠
-                            {% else %}
-                                😐
-                            {% endif %}
-                        </span>
-                        {% if loc.imagem %}
-                            <img 
-                                src="{{ loc.imagem }}" 
-                                alt="{{ loc.entidade }}" 
-                                class="imagem-miniatura"
-                            >
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
-
-        <!-- Mapa de Localizações -->
-        <div class="coluna">
-            <h2>Mapa de Localizações:</h2>
-            <div class="mapa-container">
-                <iframe src="/mapa" width="100%" height="100%"></iframe>
-            </div>
-        </div>
+    <!-- Tópicos Principais -->
+    <div class="coluna">
+        <h2>Tópicos Principais:</h2>
+        <ul>
+            {% for topico in entities.topicos %}
+            <li>{{ topico }}</li>
+            {% endfor %}
+        </ul>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <!-- Resumo -->
+    <div class="coluna">
+        <h2>Resumo:</h2>
+        <p>{{ entities.resumo }}</p>
+    </div>
+
+    <!-- Pessoas e Organizações -->
+    <div class="coluna">
+        <h2>Pessoas e Organizações:</h2>
+        <ul>
+            {% for pessoa in entities.pessoas %}
+                <li class="entidade">
+                    <strong>{{ pessoa.entidade }}</strong>
+                    <span class="emoji">
+                        {% if pessoa.sentimento > 0.05 %}
+                            😊
+                        {% elif pessoa.sentimento < -0.05 %}
+                            😠
+                        {% else %}
+                            😐
+                        {% endif %}
+                    </span>
+                    {% if pessoa.imagem %}
+                        <img 
+                            src="{{ pessoa.imagem }}" 
+                            alt="{{ pessoa.entidade }}" 
+                            class="imagem-miniatura"
+                        >
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Localizações -->
+    <div class="coluna">
+        <h2>Localizações:</h2>
+        <ul>
+            {% for loc in entities.localizacoes %}
+                <li class="entidade">
+                    <strong>{{ loc.entidade }}</strong>
+                    <span class="emoji">
+                        {% if loc.sentimento > 0.05 %}
+                            😊
+                        {% elif loc.sentimento < -0.05 %}
+                            😠
+                        {% else %}
+                            😐
+                        {% endif %}
+                    </span>
+                    {% if loc.imagem %}
+                        <img 
+                            src="{{ loc.imagem }}" 
+                            alt="{{ loc.entidade }}" 
+                            class="imagem-miniatura"
+                        >
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Mapa de Localizações -->
+    <div class="coluna">
+        <h2>Mapa de Localizações:</h2>
+        <div class="mapa-container">
+            <iframe src="/mapa" width="100%" height="100%"></iframe>
+        </div>
+    </div>
+</div>
+
+timeline.html
+<!-- timeline.html: Partial Template -->
+<h2>Visualização da Linha do Tempo</h2>
+<div id="timelineContainer"></div> <!-- Container principal para a timeline -->
+<div class="category-box" id="category-box"></div> <!-- Caixa de categorias para filtragem -->
+<div class="event-description" id="event-description"></div> <!-- Tooltip para descrições dos eventos -->
+
+<!-- Importamos o timeline.js AO FINAL, para ele rodar após DOM pronto -->
+<script src="/static/js/timeline.js"></script>
+
+timeline.js
+// Variável global para a escala de tempo
+let timeScale;
+
+// Função principal de desenho da timeline
+function drawTimeline(data) {
+    // Permite rolagem se exceder dimensões
+    const container = d3.select("#timelineContainer")
+        .style("overflow", "auto")
+        .style("max-height", "600px");
+
+    // Dimensões "grandes" para acomodar bastante espaço
+    const svgWidth = 2000;
+    const svgHeight = 800;
+
+    // Verifica se as datas de início e fim estão presentes no XML
+    const startDate = data.view && data.view.start ? new Date(data.view.start) : new Date();
+    const endDate = data.view && data.view.end ? new Date(data.view.end) : new Date(startDate.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 ano após a data de início
+
+    // Escala de tempo dinâmica
+    timeScale = d3.scaleTime()
+        .domain([startDate, endDate])
+        .range([0, svgWidth]);
+
+    // Cria SVG
+    const svg = container.append("svg")
+        .attr("width", svgWidth)
+        .attr("height", svgHeight)
+        .style("background", "#fff");
+
+    // Desenho das Eras (se presentes no XML)
+    if (data.eras && data.eras.length > 0) {
+        data.eras.forEach(era => {
+            const eraStart = era.start ? timeScale(new Date(era.start)) : 0;
+            const eraEnd = era.end ? timeScale(new Date(era.end)) : svgWidth;
+            const rectWidth = Math.max(1, eraEnd - eraStart);
+
+            // Fundo suave para a era
+            svg.append("rect")
+                .attr("x", eraStart)
+                .attr("width", rectWidth)
+                .attr("y", svgHeight / 2 - 50)
+                .attr("height", 100)
+                .attr("fill", "rgba(173, 216, 230, 0.3)")
+                .attr("class", "era");
+
+            // Texto da era (se presente)
+            if (era.name) {
+                svg.append("text")
+                    .attr("x", eraStart + 10)
+                    .attr("y", (svgHeight / 2) - 55)
+                    .attr("fill", "#000")
+                    .style("font-size", "12px")
+                    .text(era.name);
+            }
+
+            // Linhas de início/fim da era
+            svg.append("line")
+                .attr("x1", eraStart)
+                .attr("x2", eraStart)
+                .attr("y1", 0)
+                .attr("y2", svgHeight)
+                .style("stroke", "#222")
+                .style("stroke-width", 3);
+
+            svg.append("line")
+                .attr("x1", eraEnd)
+                .attr("x2", eraEnd)
+                .attr("y1", 0)
+                .attr("y2", svgHeight)
+                .style("stroke", "#222")
+                .style("stroke-width", 3);
+        });
+    } else {
+        // Se não houver eras, desenha uma única linha central
+        svg.append("line")
+            .attr("x1", 0)
+            .attr("x2", svgWidth)
+            .attr("y1", svgHeight / 2)
+            .attr("y2", svgHeight / 2)
+            .attr("stroke", "#000")
+            .attr("stroke-width", 2);
+    }
+
+    // Desenho dos Eventos (se presentes no XML)
+    if (data.events && data.events.length > 0) {
+        const eventGroup = svg.append("g").attr("class", "events");
+        const occupiedLevels = [];
+
+        // Ordena eventos pela data de início
+        const sortedEvents = data.events.slice().sort((a, b) => {
+            const aStart = a.start ? new Date(a.start).getTime() : 0;
+            const bStart = b.start ? new Date(b.start).getTime() : 0;
+            return aStart - bStart;
+        });
+
+        sortedEvents.forEach(event => {
+            const startX = event.start ? timeScale(new Date(event.start)) : 0;
+            const endX = event.end ? timeScale(new Date(event.end)) : startX + 100; // Largura padrão se não houver data de fim
+            const rawWidth = endX - startX;
+            const eventWidth = Math.max(40, rawWidth);
+
+            // Mede texto para dimensionar retângulo
+            const tempText = eventGroup.append("text")
+                .attr("x", -9999)
+                .attr("y", -9999)
+                .style("font-size", "12px")
+                .text(event.text || "Evento sem descrição");
+            const textBBox = tempText.node().getBBox();
+            tempText.remove();
+
+            const rectHeight = textBBox.height + 8;
+            const neededWidth = textBBox.width + 10;
+            const finalWidth = Math.max(eventWidth, neededWidth);
+
+            // Empilhamento acima/abaixo da linha central
+            let yOffset = svgHeight / 2;
+            let level = 0;
+            while (
+                occupiedLevels[level] &&
+                occupiedLevels[level].some(range => overlaps(range, {
+                    startX: startX,
+                    endX: startX + finalWidth,
+                    top: yOffset,
+                    bottom: yOffset + rectHeight
+                }))
+            ) {
+                level++;
+                const direction = level % 2 === 0 ? -1 : 1;
+                const offset = 40 + (level * 25);
+                yOffset = (svgHeight / 2) + (direction * offset);
+            }
+            if (!occupiedLevels[level]) occupiedLevels[level] = [];
+
+            // Se sobrepõe, alarga o evento mais antigo
+            occupiedLevels[level].forEach(existing => {
+                if (overlaps(existing, {
+                    startX: startX,
+                    endX: startX + finalWidth,
+                    top: yOffset,
+                    bottom: yOffset + rectHeight
+                })) {
+                    existing.rectRef.attr("height", parseFloat(existing.rectRef.attr("height")) + 5);
+                }
+            });
+
+            const eventRect = eventGroup.append("rect")
+                .attr("x", startX)
+                .attr("y", yOffset)
+                .attr("width", finalWidth)
+                .attr("height", rectHeight)
+                .attr("fill", data.categories && data.categories[event.category] ? data.categories[event.category].color : "#ccc")
+                .attr("stroke", "#555")
+                .attr("stroke-width", 1)
+                .attr("class", `event-${event.category || "default"}`)
+                .on("mouseover", (e) => showDescription(event, e))
+                .on("mouseout", hideDescription);
+
+            eventGroup.append("text")
+                .attr("x", startX + 5)
+                .attr("y", yOffset + (rectHeight / 2) + (textBBox.height * 0.35))
+                .attr("fill", "#000")
+                .style("font-size", "12px")
+                .text(event.text || "Evento sem descrição");
+
+            occupiedLevels[level].push({
+                startX,
+                endX: startX + finalWidth,
+                top: yOffset,
+                bottom: yOffset + rectHeight,
+                rectRef: eventRect
+            });
+        });
+    }
+
+    // Linha central
+    svg.append("line")
+        .attr("x1", 0)
+        .attr("x2", svgWidth)
+        .attr("y1", svgHeight / 2)
+        .attr("y2", svgHeight / 2)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 2);
+
+    // Adiciona a linha de referência horizontal com datas/tempos dinâmicos
+    addTimeAxis(svg, startDate, endDate);
+
+    // Eixo superior semanal
+    addWeekAxis(svg, startDate, endDate);
+}
+
+// Função para verificar sobreposição
+function overlaps(range1, range2) {
+    const hOverlap = range1.startX < range2.endX && range1.endX > range2.startX;
+    const vOverlap = range1.top < range2.bottom && range1.bottom > range2.top;
+    return hOverlap && vOverlap;
+}
+
+// Função para adicionar o eixo de tempo dinâmico
+function addTimeAxis(svg, startDate, endDate) {
+    const stepMs = getDynamicStep(startDate, endDate);
+    let current = new Date(startDate);
+
+    while (current <= endDate) {
+        const xPos = timeScale(current);
+
+        // Desenha a linha vertical pontilhada para cada divisão
+        svg.append("line")
+            .attr("x1", xPos)
+            .attr("x2", xPos)
+            .attr("y1", 0)
+            .attr("y2", svgHeight)
+            .attr("stroke", "#ccc")
+            .attr("stroke-dasharray", "2,2");
+
+        // Formata o rótulo dependendo da escala
+        const label = formatDynamicLabel(current, stepMs);
+
+        // Se for sábado(6) ou domingo(0) e estamos em escala diária ou maior
+        // => coloca em negrito
+        let fontWeight = "normal";
+        if (stepMs >= 86400000 && stepMs < 2592000000) {
+            const dayIndex = current.getDay();
+            if (dayIndex === 6 || dayIndex === 0) {
+                fontWeight = "bold";
+            }
+        }
+
+        // Coloca o label próximo à linha central
+        svg.append("text")
+            .attr("x", xPos + 3)
+            .attr("y", (svgHeight / 2) - 5)
+            .attr("fill", "#000")
+            .style("font-size", "10px")
+            .style("font-weight", fontWeight)
+            .text(label);
+
+        // Incrementa data
+        current = new Date(current.getTime() + stepMs);
+    }
+}
+
+// Função para formatar o rótulo dinâmico
+function formatDynamicLabel(date, stepMs) {
+    const dayOfWeek = date.toLocaleString("pt-BR", { weekday: "short" }); // ex: seg., ter., qua...
+    const dayNum = date.getDate();
+    const monthShort = date.toLocaleString("pt-BR", { month: "short" });  // jan, fev, etc.
+    const year = date.getFullYear();
+
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+
+    if (stepMs < 60 * 1000) {
+        // < 1 min => HH:MM:SS
+        return `${hours}:${minutes}:${seconds}`;
+    } else if (stepMs < 60 * 60 * 1000) {
+        // < 1 hora => HH:MM
+        return `${hours}:${minutes}`;
+    } else if (stepMs < 24 * 60 * 60 * 1000) {
+        // < 1 dia => exibe "HH:MM, Dia Mês"
+        return `${hours}:${minutes}  ${dayNum} ${monthShort}`;
+    } else if (stepMs < 30 * 24 * 60 * 60 * 1000) {
+        // < ~1 mês => seg. 6, ter. 7, ...
+        return `${dayOfWeek} ${dayNum}`;
+    } else if (stepMs < 365 * 24 * 60 * 60 * 1000) {
+        // < 1 ano => 6 jan
+        return `${dayNum} ${monthShort}`;
+    }
+    // >= 1 ano => só exibe o ano
+    return `${year}`;
+}
+
+// Função para adicionar o eixo superior semanal
+function addWeekAxis(svg, startDate, endDate) {
+    let current = new Date(startDate);
+    let weekCount = 1;
+
+    while (current < endDate) {
+        const weekStart = new Date(current);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        if (weekEnd > endDate) {
+            weekEnd.setTime(endDate.getTime());
+        }
+
+        const xStart = timeScale(weekStart);
+        const xEnd = timeScale(weekEnd);
+
+        svg.append("line")
+            .attr("x1", xStart)
+            .attr("x2", xStart)
+            .attr("y1", 0)
+            .attr("y2", svgHeight)
+            .style("stroke", "#444")
+            .style("stroke-width", 2);
+
+        const startLabel = formatDateLabel(weekStart);
+        const endLabel = formatDateLabel(weekEnd);
+        const label = `Semana ${weekCount} (${startLabel} - ${endLabel})`;
+
+        svg.append("text")
+            .attr("x", xStart + 5)
+            .attr("y", 20)
+            .style("font-size", "11px")
+            .style("fill", "#000")
+            .text(label);
+
+        current.setDate(current.getDate() + 7);
+        weekCount++;
+    }
+
+    function formatDateLabel(d) {
+        const day = d.getDate();
+        const month = d.toLocaleString('pt-BR', { month: 'short' });
+        const year = d.getFullYear();
+        return `${day} ${month} ${year}`;
+    }
+}
+
+// Função para adicionar linhas de grade extras
+function addGridLines(svg, startDate, endDate) {
+    const stepMs = getDynamicStep(startDate, endDate);
+    let current = new Date(startDate);
+
+    while (current <= endDate) {
+        const xPos = timeScale(current);
+        svg.append("line")
+            .attr("x1", xPos)
+            .attr("x2", xPos)
+            .attr("y1", 0)
+            .attr("y2", svgHeight)
+            .attr("stroke", "#ccc")
+            .attr("stroke-dasharray", "2,2");
+
+        current = new Date(current.getTime() + stepMs);
+    }
+}
+
+// Função para calcular o passo dinâmico
+function getDynamicStep(startDate, endDate) {
+    const diffMs = endDate - startDate;
+    const diffSec = diffMs / 1000;
+
+    if (diffSec < 60) {
+        return 1000;             // 1s
+    } else if (diffSec < 3600) {
+        return 60 * 1000;        // 1 min
+    } else if (diffSec < 86400) {
+        return 3600 * 1000;      // 1h
+    } else if (diffSec < 604800) {
+        return 86400 * 1000;     // 1 dia
+    } else if (diffSec < 2592000) {
+        return 7 * 86400 * 1000; // 1 semana
+    } else if (diffSec < 31536000) {
+        return 30 * 86400 * 1000; // ~1 mês
+    }
+    // >= 1 ano
+    return 365 * 86400 * 1000; // ou 30 dias, de modo aproximado
+}
+
+// Função para configurar a caixa de categorias
+function setupCategoryBox(categories) {
+    const categoryBox = document.getElementById("category-box");
+    Object.entries(categories).forEach(([name, props]) => {
+        const categoryItem = document.createElement("div");
+        categoryItem.className = "category-item";
+        categoryItem.innerHTML = `<span class="category-color" style="background:${props.color}"></span>${name}`;
+        categoryItem.addEventListener("click", () => toggleCategory(name));
+        categoryBox.appendChild(categoryItem);
+    });
+
+    function toggleCategory(name) {
+        d3.selectAll(`.event-${name}`).classed("hidden", function () {
+            return !d3.select(this).classed("hidden");
+        });
+    }
+}
+
+// Função para exibir a descrição do evento
+function showDescription(event, e) {
+    const eventDescription = document.getElementById("event-description");
+    eventDescription.style.display = "block";
+    eventDescription.style.left = `${e.pageX + 10}px`;
+    eventDescription.style.top = `${e.pageY + 10}px`;
+    eventDescription.textContent = event.description || "Nenhuma descrição disponível";
+}
+
+// Função para ocultar a descrição do evento
+function hideDescription() {
+    const eventDescription = document.getElementById("event-description");
+    eventDescription.style.display = "none";
+}
+
+// Inicialização após o carregamento do DOM
+document.addEventListener("DOMContentLoaded", function () {
+    const timelineBtn = document.getElementById("timelineBtn");
+    if (timelineBtn) {
+        timelineBtn.addEventListener("click", function () {
+            loadTimeline();
+        });
+    }
+});
+
+timeline.css
+body {
+    font-family: Arial, sans-serif;
+}
+
+#timeline {
+    width: 90%;
+    margin: auto;
+    position: relative;
+    background-color: #fff;
+    /* A rolagem e height adicional são definidas no app.js para permitir grande área */
+}
+
+.era {
+    fill-opacity: 0.3; /* Visual suave */
+    stroke: #888;
+    stroke-width: 1px;
+    fill: rgba(173, 216, 230, 0.3); /* ex: azul claro pastel */
+}
+
+/* Eventos: retângulo + texto */
+.event rect {
+    stroke-width: 1px; /* Borda fina */
+    rx: 5px;
+    ry: 5px;
+    fill-opacity: 0.9;
+}
+
+.event text {
+    font-size: 12px;
+    pointer-events: none;
+    text-anchor: start;
+}
+
+/* Caixa de categorias */
+.category-box {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 10;
+    max-width: 250px;
+    max-height: 150px; /* evita cobrir a timeline em telas menores */
+    overflow-y: auto;
+}
+
+.category-item {
+    margin-bottom: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.category-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+    vertical-align: middle;
+    border: 1px solid #000;
+}
+
+.category-item:hover {
+    background: rgba(200, 200, 200, 0.5);
+}
+
+/* Tooltip para descrição do evento */
+.event-description {
+    display: none;
+    position: absolute;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    padding: 5px;
+    border-radius: 3px;
+    pointer-events: none;
+    font-size: 12px;
+    z-index: 20;
+    max-width: 200px;
+    word-wrap: break-word;
+}
+
+/* Linhas de grade */
+.grid-line {
+    stroke: #ccc;
+    stroke-dasharray: 2,2;
+}
+
+/* Texto das linhas de grid */
+.grid-text {
+    font-size: 10px;
+    fill: #000;
+    text-anchor: middle;
+}
+
+/* Eixo principal */
+.x-axis {
+    font-size: 10px;
+    fill: #000;
+}
+
+/* Datas centrais */
+.date-label {
+    font-size: 10px;
+    fill: #000;
+    text-anchor: middle;
+}
+
+/* Eixo superior das semanas */
+.x-axis-top {
+    font-size: 10px;
+    fill: #000;
+}
+
+/* Camada de eventos, isolada */
+.event-layer {
+    isolation: isolate;
+}
+
+mapa.html
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_c4a26b798782513765f4ebd39b4f0de8 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_c4a26b798782513765f4ebd39b4f0de8" ></div>
+        
 </body>
+<script>
+    
+    
+            var map_c4a26b798782513765f4ebd39b4f0de8 = L.map(
+                "map_c4a26b798782513765f4ebd39b4f0de8",
+                {
+                    center: [-15.0, -50.0],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 4,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_78f5fe17c39d3e343f077b703fc98f09 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_78f5fe17c39d3e343f077b703fc98f09.addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var marker_96f599058996cb206242b790db312f41 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_cecc7b2f356af0e56816aae52469d5f5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_96f599058996cb206242b790db312f41.setIcon(icon_cecc7b2f356af0e56816aae52469d5f5);
+        
+    
+        var popup_f6da78bf43ac9dd24c013e5467d8aa06 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_315f91993c7854067f0ad341c78b1ae9 = $(`<div id="html_315f91993c7854067f0ad341c78b1ae9" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_f6da78bf43ac9dd24c013e5467d8aa06.setContent(html_315f91993c7854067f0ad341c78b1ae9);
+            
+        
+
+        marker_96f599058996cb206242b790db312f41.bindPopup(popup_f6da78bf43ac9dd24c013e5467d8aa06)
+        ;
+
+        
+    
+    
+            marker_96f599058996cb206242b790db312f41.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_c210a52244c9b2719614cca51d0abfd9 = L.marker(
+                [-15.79899835, -47.860765675844334],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_e09eb1b8b4e7699e2c864c73cb03a714 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_c210a52244c9b2719614cca51d0abfd9.setIcon(icon_e09eb1b8b4e7699e2c864c73cb03a714);
+        
+    
+        var popup_7c9bb336e17ebd8454551d2e6dd3ae08 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_52cc269da72cfced991faccbc133ca9b = $(`<div id="html_52cc269da72cfced991faccbc133ca9b" style="width: 100.0%; height: 100.0%;">Entidade: Palácio do Planalto<br>Tipo: localização<br>Local Esperado: Brasília<br>Sentimento: 0.00</div>`)[0];
+                popup_7c9bb336e17ebd8454551d2e6dd3ae08.setContent(html_52cc269da72cfced991faccbc133ca9b);
+            
+        
+
+        marker_c210a52244c9b2719614cca51d0abfd9.bindPopup(popup_7c9bb336e17ebd8454551d2e6dd3ae08)
+        ;
+
+        
+    
+    
+            marker_c210a52244c9b2719614cca51d0abfd9.bindTooltip(
+                `<div>
+                     Palácio do Planalto - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_311d6e7047a185e2286fa0e9b41859b4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.setIcon(icon_311d6e7047a185e2286fa0e9b41859b4);
+        
+    
+        var popup_8a40ac149d77145f91057d95cec6da52 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_12c96a15c60a903770acd384f6fd2db7 = $(`<div id="html_12c96a15c60a903770acd384f6fd2db7" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_8a40ac149d77145f91057d95cec6da52.setContent(html_12c96a15c60a903770acd384f6fd2db7);
+            
+        
+
+        marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.bindPopup(popup_8a40ac149d77145f91057d95cec6da52)
+        ;
+
+        
+    
+    
+            marker_fc69f2faa0b7d2f1f5c55b0a8c631ab6.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4422bf73e8632ed666b45e7d143e52a8 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_de47b3dea86034eeda44ce0d9ce462d4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4422bf73e8632ed666b45e7d143e52a8.setIcon(icon_de47b3dea86034eeda44ce0d9ce462d4);
+        
+    
+        var popup_5ba10e24920ad42d922c27fd062ee565 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_caab2213a16ea3654f078cdc5849762f = $(`<div id="html_caab2213a16ea3654f078cdc5849762f" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_5ba10e24920ad42d922c27fd062ee565.setContent(html_caab2213a16ea3654f078cdc5849762f);
+            
+        
+
+        marker_4422bf73e8632ed666b45e7d143e52a8.bindPopup(popup_5ba10e24920ad42d922c27fd062ee565)
+        ;
+
+        
+    
+    
+            marker_4422bf73e8632ed666b45e7d143e52a8.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4db8a050783ad7f6a1ff71add83d5f67 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_07928aa069628c745c3f5b43b4a30496 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4db8a050783ad7f6a1ff71add83d5f67.setIcon(icon_07928aa069628c745c3f5b43b4a30496);
+        
+    
+        var popup_e14ccdce4df3b8ec9636253dcb40cc93 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_701b8de274a074d609f965550981f4e4 = $(`<div id="html_701b8de274a074d609f965550981f4e4" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_e14ccdce4df3b8ec9636253dcb40cc93.setContent(html_701b8de274a074d609f965550981f4e4);
+            
+        
+
+        marker_4db8a050783ad7f6a1ff71add83d5f67.bindPopup(popup_e14ccdce4df3b8ec9636253dcb40cc93)
+        ;
+
+        
+    
+    
+            marker_4db8a050783ad7f6a1ff71add83d5f67.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_4919f0762d7d3da7be3e80cbd872e799 = L.marker(
+                [-10.3333333, -53.2],
+                {
+}
+            ).addTo(map_c4a26b798782513765f4ebd39b4f0de8);
+        
+    
+            var icon_45f6f4297b53d97dc26c8182c776e5c2 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_4919f0762d7d3da7be3e80cbd872e799.setIcon(icon_45f6f4297b53d97dc26c8182c776e5c2);
+        
+    
+        var popup_f609d5797407bf792ec8a2eb7ae455ca = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_1b7d83e67887377c59585e4f3faf2540 = $(`<div id="html_1b7d83e67887377c59585e4f3faf2540" style="width: 100.0%; height: 100.0%;">Entidade: Brasil<br>Tipo: localização<br>Local Esperado: None<br>Sentimento: 0.00</div>`)[0];
+                popup_f609d5797407bf792ec8a2eb7ae455ca.setContent(html_1b7d83e67887377c59585e4f3faf2540);
+            
+        
+
+        marker_4919f0762d7d3da7be3e80cbd872e799.bindPopup(popup_f609d5797407bf792ec8a2eb7ae455ca)
+        ;
+
+        
+    
+    
+            marker_4919f0762d7d3da7be3e80cbd872e799.bindTooltip(
+                `<div>
+                     Brasil - localização
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+</script>
 </html>
+

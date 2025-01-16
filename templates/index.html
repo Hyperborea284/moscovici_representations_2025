@@ -110,25 +110,27 @@
         <div class="tab-content mt-3">
             <!-- Aba de Entidades e Localidades -->
             <div class="tab-pane fade show active" id="entities" role="tabpanel" aria-labelledby="entities-tab">
+                <button type="button" id="identifyEntitiesBtn" class="btn btn-primary mt-3">Identificar Entidades</button>
                 <div id="entitiesResults" class="mt-3">
                     <!-- O conteúdo de entidades e localidades será inserido aqui via AJAX -->
                 </div>
+                <!-- Container para o mapa gerado dinamicamente -->
+                <div id="mapContainer" class="mt-3"></div>
             </div>
 
             <!-- Aba de Geração de Timeline -->
             <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
                 <form id="timelineForm">
+                    <div class="mb-3">
+                        <label for="timelineDropdown" class="form-label">Timelines Disponíveis</label>
+                        <select id="timelineDropdown" name="timelineDropdown" class="form-select" onfocus="loadTimelineList()">
+                            <!-- As timelines serão carregadas aqui via JavaScript -->
+                        </select>
+                    </div>
                     <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
                 </form>
                 <div id="timelineResults" class="mt-3">
                     <!-- O conteúdo da timeline (HTML do template) será inserido aqui via AJAX -->
-                </div>
-                <!-- Lista de timelines disponíveis -->
-                <div id="timelineList" class="mt-3">
-                    <h4>Timelines Disponíveis</h4>
-                    <ul id="timelineFiles" class="list-group">
-                        <!-- As timelines serão carregadas aqui via JavaScript -->
-                    </ul>
                 </div>
             </div>
 
