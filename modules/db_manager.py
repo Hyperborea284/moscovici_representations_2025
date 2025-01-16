@@ -100,8 +100,7 @@ def create_db_if_not_exists(db_path: str):
                 )
             """)
 
-            # Tabela opcional para armazenar chamadas a APIs, caso desejemos registrar
-            # (mantida para robustecer logs e evitar reprocessamentos)
+            # Tabela opcional para armazenar chamadas a APIs
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS api_calls (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,6 +108,18 @@ def create_db_if_not_exists(db_path: str):
                     parametros TEXT NOT NULL,
                     hash TEXT NOT NULL,
                     resposta TEXT NOT NULL,
+                    timestamp TEXT NOT NULL
+                )
+            """)
+
+            # >>>>> NOVA TABELA PARA CENÁRIOS <<<<<
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cenarios (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hash TEXT NOT NULL,
+                    topicos TEXT NOT NULL,
+                    resumo TEXT NOT NULL,
+                    cenarios TEXT NOT NULL,
                     timestamp TEXT NOT NULL
                 )
             """)
@@ -183,7 +194,7 @@ def insert_content_ingestao(db_path: str, fonte: str, conteudo: str):
 
 def insert_link_raspado(db_path: str, link: str, conteudo: str):
     """
-    Insere um registro na tabela de links raspados, calculando o hash do texto obtido.
+    Insere um registro na tabela de links_raspados, calculando o hash do texto obtido.
     """
     if not db_path:
         return
@@ -206,8 +217,7 @@ def memoize_result(db_path: str, table_name: str, unique_content: str):
     Função de memoização para "envelopar" processamentos de scripts/classes/funções.
     Recebe o conteúdo (por exemplo, prompt, texto, etc.), verifica seu hash,
     e consulta a tabela correspondente para ver se já foi processado.
-    Caso exista, retorna o conteúdo do DB; se não, retorna None para sinalizar
-    que precisamos processar e então armazenar.
+    Caso exista, retorna o conteúdo do DB; se não, retorna None.
     """
     if not db_path:
         return None
@@ -260,3 +270,38 @@ def list_existing_dbs(db_folder: str) -> list:
     if not os.path.isdir(db_folder):
         return []
     return [f for f in os.listdir(db_folder) if f.endswith('.db')]
+
+# >>>>> NOVA FUNÇÃO DE EXEMPLO PARA CENÁRIOS <<<<<
+def insert_cenarios(db_path: str, topicos: str, resumo: str, cenarios_json: str):
+    """
+    Inserção específica na tabela 'cenarios', com colunas (hash, topicos, resumo, cenarios, timestamp).
+    Assim armazenamos cada novo conjunto de cenários gerados, evitando duplicação.
+    """
+    if not db_path:
+        return
+
+    # Para fins de memoização, construímos a string-base a partir de topicos+resumo+cenarios_json
+    combined_str = f"{topicos}|{resumo}|{cenarios_json}"
+    hash_val = calculate_hash(combined_str)
+
+    # Verificamos se já existe registro idêntico
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        current_ts = time.strftime('%Y%m%d_%H%M%S')
+
+        # Verificar se o hash já existe
+        cursor.execute("SELECT id FROM cenarios WHERE hash = ?", (hash_val,))
+        row = cursor.fetchone()
+        if row:
+            print("Cenários já registrados anteriormente. (memo)")
+        else:
+            # Inserir
+            cursor.execute("""
+                INSERT INTO cenarios (hash, topicos, resumo, cenarios, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (hash_val, topicos, resumo, cenarios_json, current_ts))
+            conn.commit()
+            print("Cenários inseridos com sucesso!")
+    finally:
+        conn.close()

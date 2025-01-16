@@ -1,4 +1,4 @@
-// Função para carregar a lista de timelines disponíveis (agora global)
+// Função para carregar a lista de timelines disponíveis (mantida)
 function loadTimelineList() {
     $.ajax({
         url: '/list_timelines', // Rota para listar os arquivos de timeline
@@ -29,41 +29,32 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
-    // -----------------------------
-    // 1) SELEÇÃO DE DB (ABA NOVA)
-    // -----------------------------
+    // -- Seleção de DB --
     const dbSelectDropdown = $('#dbSelectDropdown');
     const loadDbBtn = $('#loadDbBtn');
     const dbLoadMessage = $('#dbLoadMessage');
 
-    // Função para atualizar a lista de DBs existentes
+    // Componentes de LlamaIndex
+    const llamaQueryInput = $('#llamaQueryInput');
+    const sendLlamaBtn = $('#sendLlamaBtn');
+    const llamaResponses = $('#llamaResponses');
+
     function refreshDbList() {
-        // Podemos criar uma rota específica para JSON, mas aqui usaremos GET em /select_db mesmo,
-        // se ele retornar HTML, poderíamos ajustar. Para evitar complicações, assumimos que
-        // existe rota /select_db que nos devolve em JSON a lista de db_files.
+        // Tenta obter HTML da rota /select_db e extrair uma lista de DBs
         $.ajax({
             url: '/select_db',
             type: 'GET',
             dataType: 'html',
             success: function (responseHtml) {
-                /*
-                  Como /select_db normalmente renderiza um template, aqui só iremos extrair
-                  a lista de db_files caso seja devolvida. Alternativamente, poderíamos ter
-                  /list_dbs em JSON puro. Vamos simular algo minimalista:
-                */
                 try {
-                    // A ideia é que no template ou no HTML, a gente teria algo como
-                    // "data-dbfiles='["db1.db","db2.db"]'"
-                    // Se preferir, criar uma rota separada em Python.
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(responseHtml, 'text/html');
-                    // Procurar um elemento contendo data custom
                     const dataElement = doc.querySelector('#dbFilesJson');
                     if (dataElement) {
                         const dbFilesList = JSON.parse(dataElement.textContent || '[]');
                         populateDbDropdown(dbFilesList);
                     } else {
-                        console.warn("Não foi encontrado #dbFilesJson na resposta. Ajustar rota /select_db se necessário.");
+                        console.warn("Não foi encontrado #dbFilesJson na resposta.");
                     }
                 } catch (err) {
                     console.error("Erro ao parsear HTML de /select_db", err);
@@ -75,7 +66,6 @@ $(document).ready(function () {
         });
     }
 
-    // Função auxiliar para preencher o dropdown
     function populateDbDropdown(dbList) {
         dbSelectDropdown.empty();
         if (dbList && dbList.length > 0) {
@@ -88,17 +78,16 @@ $(document).ready(function () {
         }
     }
 
-    // Chamamos refreshDbList() ao carregar a página
+    // Chamamos essa função para popular a lista ao iniciar
     refreshDbList();
 
-    // Ao clicar no botão "Carregar DB Selecionado"
+    // Ao clicar em "Carregar DB Selecionado"
     loadDbBtn.on('click', function () {
         const selectedDb = dbSelectDropdown.val();
         if (!selectedDb) {
             alert("Nenhum DB selecionado.");
             return;
         }
-        // Fazemos um POST para /select_db
         $.ajax({
             url: '/select_db',
             type: 'POST',
@@ -118,10 +107,39 @@ $(document).ready(function () {
         });
     });
 
-    // Fim da lógica de Seleção de DB
-    // -------------------------------------
+    // Botão para enviar pergunta ao DB via LlamaIndex
+    sendLlamaBtn.on('click', function() {
+        const question = llamaQueryInput.val().trim();
+        if (!question) {
+            alert("Digite uma pergunta para prosseguir.");
+            return;
+        }
 
-    // Ao mudar a seleção do dropdown, exibe a timeline correspondente
+        // Rota hipotética /llama_query
+        $.ajax({
+            url: '/llama_query',
+            type: 'POST',
+            data: JSON.stringify({ question: question }),
+            contentType: 'application/json; charset=utf-8',
+            dataType: 'json',
+            success: function(data) {
+                appendLlamaMessage(question, data.answer);
+            },
+            error: function() {
+                alert("Erro ao consultar LlamaIndex. Verifique o servidor.");
+            }
+        });
+    });
+
+    // Função para exibir pergunta e resposta no container #llamaResponses
+    function appendLlamaMessage(question, answer) {
+        const now = new Date().toLocaleTimeString();
+        const qHtml = `<div><strong>Pergunta [${now}]:</strong> ${question}</div>`;
+        const aHtml = `<div style="margin-left:20px;"><strong>Resposta:</strong> ${answer}</div>`;
+        llamaResponses.append(qHtml).append(aHtml).scrollTop(llamaResponses[0].scrollHeight);
+    }
+
+    // Funções para Timeline (mantidas)
     $('#timelineDropdown').on('change', function () {
         const filename = $(this).val();
         if (filename) {
@@ -129,7 +147,6 @@ $(document).ready(function () {
         }
     });
 
-    // Função para carregar uma timeline específica
     function loadTimeline(filename) {
         $.ajax({
             url: `/view_timeline?file=${filename}`,
@@ -137,8 +154,7 @@ $(document).ready(function () {
             dataType: 'json',
             success: function (data) {
                 if (data.status === "success") {
-                    $('#timelineResults').html(data.html); // Exibe a timeline
-                    // Chama a função para carregar os dados da timeline
+                    $('#timelineResults').html(data.html);
                     fetchTimelineData(filename);
                 } else {
                     alert("Erro ao carregar a timeline: " + (data.message || data.error));
@@ -150,7 +166,6 @@ $(document).ready(function () {
         });
     }
 
-    // Função para buscar os dados da timeline
     function fetchTimelineData(filename) {
         $.ajax({
             url: `/timeline_data?file=${filename}`,
@@ -158,7 +173,7 @@ $(document).ready(function () {
             dataType: 'json',
             success: function (data) {
                 if (data) {
-                    drawTimeline(data); // Desenha a timeline com os dados recebidos
+                    drawTimeline(data);
                 } else {
                     alert("Erro ao carregar os dados da timeline.");
                 }
@@ -170,7 +185,7 @@ $(document).ready(function () {
         });
     }
 
-    // Função para mostrar popup de decisão (adaptada para três fontes)
+    // Popup de conflito de fontes de texto
     function showSourceConflictPopup(options, onSelect) {
         let message = '<p>Detectamos que você preencheu mais de uma fonte de texto:</p><ul>';
         options.forEach(opt => {
@@ -216,7 +231,7 @@ $(document).ready(function () {
                     timestamp.html(data.html_fixed.timestamp || "Erro ao carregar timestamp.");
                     counts.html(data.html_fixed.counts || "Erro ao carregar contagem.");
                     $('#sentimentResults').html(data.html_dynamic);
-                    fixedContent.removeClass('d-none'); // Certificar que o conteúdo é exibido
+                    fixedContent.removeClass('d-none');
                 } else {
                     alert("Erro ao processar os resultados. Verifique o servidor.");
                 }
@@ -240,7 +255,6 @@ $(document).ready(function () {
         if (textInput) sourcesUsed.push('text');
         if (linksInput) sourcesUsed.push('links');
 
-        // Verificar o formato do arquivo se selecionado
         if (fileInput && !fileInput.endsWith('.txt')) {
             alert('Apenas arquivos .txt são permitidos.');
             return;
@@ -422,7 +436,7 @@ $(document).ready(function () {
                         $(this).DataTable({
                             paging: false,
                             info: false,
-                            searching: false,
+                            searching: false
                         });
                     }
                 });
@@ -496,9 +510,7 @@ $(document).ready(function () {
                         $('#mapContainer').html(data.entities.map_html);
                     }
                 } else if (data.status === "cached") {
-                    // Se veio "cached", data.entities deve ser string (ou obj).
                     if (typeof data.entities === "string") {
-                        // Podem ter armazenado string JSON, tentamos parsear:
                         try {
                             let obj = JSON.parse(data.entities);
                             $('#entitiesResults').html(renderEntities(obj));
@@ -506,11 +518,9 @@ $(document).ready(function () {
                                 $('#mapContainer').html(obj.map_html);
                             }
                         } catch (e) {
-                            // Se não for JSON, mostramos direto
                             $('#entitiesResults').html(`<pre>${data.entities}</pre>`);
                         }
                     } else {
-                        // Caso já seja objeto
                         $('#entitiesResults').html(renderEntities(data.entities));
                         if (data.entities.map_html) {
                             $('#mapContainer').html(data.entities.map_html);
@@ -570,4 +580,22 @@ $(document).ready(function () {
         html += '</div>';
         return html;
     }
+
+    // Botão de Gerar Cenários
+    $('#generateCenariosBtn').on('click', function () {
+        $.ajax({
+            url: '/generate_cenarios',
+            type: 'POST',
+            success: function (data) {
+                if (data.html) {
+                    $('#cenariosResults').html(data.html);
+                } else {
+                    alert("Não foi possível gerar cenários. Verifique o servidor.");
+                }
+            },
+            error: function () {
+                alert("Erro ao gerar cenários. Verifique o servidor.");
+            }
+        });
+    });
 });

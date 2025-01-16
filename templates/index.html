@@ -24,8 +24,6 @@
             <form id="ingestForm">
                 <!-- Abas para escolha da fonte de texto e seleção de DB -->
                 <ul class="nav nav-tabs" id="ingestTabs" role="tablist">
-
-                    <!-- NOVA ABA: SELECIONAR DB -->
                     <li class="nav-item">
                         <button class="nav-link active" id="db-tab"
                                 data-bs-toggle="tab" data-bs-target="#selectDbContent"
@@ -34,7 +32,6 @@
                             Selecionar DB
                         </button>
                     </li>
-
                     <li class="nav-item">
                         <button class="nav-link" id="file-tab"
                                 data-bs-toggle="tab" data-bs-target="#fileContent"
@@ -62,7 +59,7 @@
                 </ul>
 
                 <div class="tab-content p-3 border border-top-0" id="ingestTabContent">
-                    <!-- NOVO CONTEÚDO: SELECIONAR DB -->
+                    <!-- Selecionar DB -->
                     <div class="tab-pane fade show active" id="selectDbContent" role="tabpanel" aria-labelledby="db-tab">
                         <div class="mb-3">
                             <label for="dbSelectDropdown" class="form-label">DBs Disponíveis</label>
@@ -74,9 +71,27 @@
                             Carregar DB Selecionado
                         </button>
                         <div id="dbLoadMessage" class="text-primary mt-3" style="display: none;"></div>
+
+                        <!-- NOVO TRECHO: Perguntas ao DB via LlamaIndex -->
+                        <hr>
+                        <h5>Perguntas ao DB (via LlamaIndex)</h5>
+                        <div class="mb-3">
+                            <label for="llamaQueryInput" class="form-label">
+                                Pergunta em Linguagem Natural
+                            </label>
+                            <textarea id="llamaQueryInput" class="form-control" rows="2"
+                                      placeholder="Digite sua pergunta sobre o DB selecionado..."></textarea>
+                        </div>
+                        <button type="button" id="sendLlamaBtn" class="btn btn-info">
+                            Enviar Pergunta
+                        </button>
+                        <div id="llamaResponses" class="border mt-3 p-2"
+                             style="max-height: 200px; overflow-y: auto;">
+                            <!-- As perguntas e respostas serão inseridas aqui -->
+                        </div>
                     </div>
 
-                    <!-- Aba: Texto via Arquivo -->
+                    <!-- Texto via Arquivo -->
                     <div class="tab-pane fade" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
                         <div class="mb-3">
                             <label for="inputFile" class="form-label">Carregar Arquivo de Texto</label>
@@ -84,7 +99,7 @@
                         </div>
                     </div>
 
-                    <!-- Aba: Texto Copiado -->
+                    <!-- Texto Copiado -->
                     <div class="tab-pane fade" id="textContent" role="tabpanel" aria-labelledby="text-tab">
                         <div class="mb-3">
                             <label for="inputText" class="form-label">Cole Texto Aqui</label>
@@ -92,7 +107,7 @@
                         </div>
                     </div>
 
-                    <!-- Aba: Texto de Links -->
+                    <!-- Texto de Links -->
                     <div class="tab-pane fade" id="linksContent" role="tabpanel" aria-labelledby="links-tab">
                         <div class="mb-3">
                             <label for="linksArea" class="form-label">Insira os links aqui (um por linha)</label>
@@ -137,6 +152,12 @@
             <li class="nav-item">
                 <button class="nav-link" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button" role="tab" aria-controls="content" aria-selected="false">
                     Representação Social
+                </button>
+            </li>
+            <!-- NOVA ABA: Cenários -->
+            <li class="nav-item">
+                <button class="nav-link" id="cenarios-tab" data-bs-toggle="tab" data-bs-target="#cenarios" type="button" role="tab" aria-controls="cenarios" aria-selected="false">
+                    Cenários
                 </button>
             </li>
         </ul>
@@ -213,6 +234,14 @@
                     <button type="button" id="contentBtn" class="btn btn-primary">Gerar Análise</button>
                 </form>
                 <div id="contentResults" class="mt-3"></div>
+            </div>
+
+            <!-- Aba de Cenários -->
+            <div class="tab-pane fade" id="cenarios" role="tabpanel" aria-labelledby="cenarios-tab">
+                <button type="button" id="generateCenariosBtn" class="btn btn-primary mt-3">Gerar Cenários</button>
+                <div id="cenariosResults" class="mt-3">
+                    <!-- Aqui será injetado o HTML retornado pelo propect.py -->
+                </div>
             </div>
         </div>
     </div>
