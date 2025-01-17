@@ -183,3 +183,53 @@ E nada é inserido ou registrado no db na aba "representações sociais"
 A ativação de 'Gerar Análise' na aba "Análise de Sentimentos" funciona corretamente, mas nada é inserido ou registrado no db na aba "analise_sentimentos"
 
 A inserção de texto em 'conteudos_ingestao' via arquivo ocorre corretamente; 
+
+
+
+
+
+
+O mecanismo de ingestão de links por link registra corretamente no db; a ativação associada à este da análise de sentimentos, não está sendo registrada na tabela 'análise de sentimentos' embora este conteúdo apareça na aba.
+
+O mecanismo de ingestão de texto via arquivo não está funcionando e nenhum conteúdo está sendo registrado no db.
+
+O mecanismo de ingestão de texto via texto copiado está funcionando e o conteúdo está sendo registrado no db.
+
+O mecanismo que carrega um db deve procurar por todos os conteúdos de texto ingeridos e realizar o processamento que gera a visualização do texto indexado, com a respectiva contagem de frases e deve usar a timestamp presente no db para indicar a data, não deve gerar uma timestamp nova.
+
+O mecannismo de análise das representações sociais não funciona corretamente e nem registra conteúdo no db, vide:
+
+
+
+A ativação do botão "Identificar entidades", na aba 'Entidades e Localidades' não está funcionando e gera o erro:
+
+E também não está registrando nada no db na respectiva tabela.
+
+A ativação do botão "gerar cenários" na aba Cenários não está funcionando e gera o erro:
+
+
+E também não está registrando nada no db na respectiva tabela.
+
+Quando não existe nenhuma timeline gerada e o menu dropdown é acionado para exibir as timelines, a aplicação retorna um erro e para de rodar. Quando estas existem, são renderizadas. Quando o botão 'Gerar Timeline' é ativado, o script não é ativado e nem é registrado nada no db.
+
+O conteúdo vindo de qualquer um dos mecanismos de ingestão de texto deve estar disponível para todos os mecanismos de análise.
+
+Quando numa ativação nova, se pede para se buscar o conteúdo de um link, nada é ativado e o erro é anunciado:
+
+
+No botão de conflito de fontes, deve haver uma opção para se usar o texto de todas as fontes, compondo um corpus de texto.
+
+O botão de ingestão de texto via arquivo parou de funcionar, retornando o erro:
+
+
+O mecanismo de ingestão de texto via cópia gera o seguinte erro:
+
+
+e este quando ocorre termina a aplicação.
+
+
+Na ativação do botão 'Gerar Cenários' ocorre o seguinte erro:
+
+
+
+o botão 'gerar timeline' não ativa nada e gera o erro:

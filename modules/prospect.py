@@ -9,7 +9,7 @@ from goose3 import Goose
 import json
 import spacy
 import time  # Para gerar a timestamp
-from sentence_transformers import SentenceTransformer  # Para Sentence-BERT
+from sentence_transformers import SentenceTransformer
 import webbrowser
 
 # Carregar o modelo de linguagem do spaCy
@@ -62,7 +62,7 @@ class TextProcessor:
 
         return self.resumo, self.topicos
 
-class EntityClassifier:
+class ScenarioClassifier:
     """
     Classe responsável por gerar cenários (imediato, curto, médio e longo prazos),
     usando as informações de resumo, tópicos e texto original.

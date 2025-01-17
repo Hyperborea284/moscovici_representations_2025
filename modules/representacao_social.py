@@ -1,13 +1,13 @@
 import re
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg')  # Mantém backend non-interactive
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import time
 import nltk
 from nltk.corpus import stopwords
-from flask import jsonify
+
 
 class RepresentacaoSocial:
     def __init__(self, textos, aplicar_filtro=True):
@@ -103,7 +103,7 @@ def process_representacao_social(text, request_form, upload_folder):
     :param text: Texto para análise.
     :param request_form: Formulário com os filtros.
     :param upload_folder: Caminho para salvar arquivos gerados.
-    :return: JSON com o HTML gerado.
+    :return: Dicionário com { 'html': ..., 'caminhos_imagens': ..., 'conteudos_tabelas': ... }
     """
     textos = nltk.sent_tokenize(text)
     aplicar_filtro = request_form.get('extra_filter', 'nao') == 'sim'
@@ -132,21 +132,26 @@ def process_representacao_social(text, request_form, upload_folder):
         for zona in zonas:
             zona_dados = palavras[palavras['zona'] == zona]
             grafico_path = analise.gerar_grafico(zona_dados, stopwords_filter, zona, upload_folder)
+            html_tabela = zona_dados.to_html(classes='table table-striped', index=False)
             graficos_tabelas.append({
                 "zona": zona,
-                "tabela": zona_dados.to_html(classes='table table-striped', index=False),
+                "tabela": html_tabela,
                 "grafico": grafico_path
             })
     else:
         zona_dados = palavras[palavras['zona'] == zone_filter]
         grafico_path = analise.gerar_grafico(zona_dados, stopwords_filter, zone_filter, upload_folder)
+        html_tabela = zona_dados.to_html(classes='table table-striped', index=False)
         graficos_tabelas.append({
             "zona": zone_filter,
-            "tabela": zona_dados.to_html(classes='table table-striped', index=False),
+            "tabela": html_tabela,
             "grafico": grafico_path
         })
 
     html = ""
+    caminhos_imagens = []
+    conteudos_tabelas = []
+
     for item in graficos_tabelas:
         html += f"""
         <div class="zona-section">
@@ -156,5 +161,11 @@ def process_representacao_social(text, request_form, upload_folder):
         </div>
         <hr>
         """
+        caminhos_imagens.append(item['grafico'])
+        conteudos_tabelas.append(item['tabela'])
 
-    return jsonify({"html": html})
+    return {
+        "html": html,
+        "caminhos_imagens": ";".join(caminhos_imagens),
+        "conteudos_tabelas": ";".join(conteudos_tabelas)
+    }

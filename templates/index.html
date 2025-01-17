@@ -4,7 +4,8 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ephor - Análise de Conteúdo</title>
+    <!-- >>> ADAPTAÇÃO: deixamos um título genérico; JS cuidará do nome do DB -->
+    <title>Ephor - Análise de Conteúdo</title>  
     <!-- CSS do Bootstrap -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
     <!-- CSS do DataTables -->
@@ -16,11 +17,12 @@
 </head>
 <body>
     <div class="container mt-5">
+        <!-- Mantido, ou poderia estar vazio; iremos sobrescrever com JS -->
         <h1 class="mb-4">Ephor - Análise de Conteúdo</h1>
 
+        <!-- Área de ingestão de texto ou visualização de conteúdo fixo + seleção de DB -->
         <div id="ingestContent" class="mb-4">
             <form id="ingestForm">
-                <!-- Abas para escolha da fonte de texto e seleção de DB -->
                 <ul class="nav nav-tabs" id="ingestTabs" role="tablist">
                     <li class="nav-item">
                         <button class="nav-link active" id="db-tab"
@@ -64,20 +66,24 @@
                         <div class="mb-3">
                             <label for="dbSelectDropdown" class="form-label">DBs Disponíveis</label>
                             <select id="dbSelectDropdown" name="db_name" class="form-select">
+                                <!-- Carregado dinamicamente via JS -->
                             </select>
                         </div>
                         <button type="button" id="loadDbBtn" class="btn btn-success mt-1">
                             Carregar DB Selecionado
                         </button>
+                        <!-- Botão Salvar no DB -->
                         <button type="button" id="saveDbBtn" class="btn btn-primary mt-1">
                             Salvar no DB
                         </button>
+                        <!-- >>> ADAPTAÇÃO: Botão Remover DB ao lado de Salvar DB -->
                         <button type="button" id="deleteDbBtn" class="btn btn-danger mt-1">
-                            Excluir DB Selecionado
+                            Remover DB
                         </button>
+                        
                         <div id="dbLoadMessage" class="text-primary mt-3" style="display: none;"></div>
 
-                        <!-- Perguntas ao DB via LlamaIndex (exemplo hipotético) -->
+                        <!-- Perguntas ao DB (via LlamaIndex) -->
                         <hr>
                         <h5>Perguntas ao DB (via LlamaIndex)</h5>
                         <div class="mb-3">
@@ -98,7 +104,7 @@
                     <!-- Texto via Arquivo -->
                     <div class="tab-pane fade" id="fileContent" role="tabpanel" aria-labelledby="file-tab">
                         <div class="mb-3">
-                            <label for="inputFile" class="form-label">Carregar Arquivo de Texto (.txt)</label>
+                            <label for="inputFile" class="form-label">Carregar Arquivo de Texto</label>
                             <input type="file" id="inputFile" name="file" class="form-control" accept=".txt">
                         </div>
                     </div>
@@ -128,71 +134,62 @@
             </form>
         </div>
 
-        <!-- Exibição de conteúdo analisado -->
+        <!-- Exibição de conteúdo fixo -->
         <div id="fixedContent" class="mb-4 d-none">
-            <div id="analyzedText" class="border p-3 mb-3"
-                 style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div>
+            <div id="analyzedText" class="border p-3 mb-3" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div>
             <div id="timestamp" class="border p-3 mb-3"></div>
             <div id="counts" class="border p-3 mb-3"></div>
             <button type="button" id="resetBtn" class="btn btn-warning">Enviar Outro Conteúdo</button>
         </div>
 
-        <!-- Abas para análises -->
+        <!-- Abas de análise -->
         <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
             <li class="nav-item">
-                <button class="nav-link active" id="entities-tab"
-                        data-bs-toggle="tab" data-bs-target="#entities" type="button"
-                        role="tab" aria-controls="entities" aria-selected="true">
+                <button class="nav-link active" id="entities-tab" data-bs-toggle="tab"
+                        data-bs-target="#entities" type="button" role="tab" aria-controls="entities" aria-selected="true">
                     Entidades e Localidades
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link" id="timeline-tab"
-                        data-bs-toggle="tab" data-bs-target="#timeline" type="button"
-                        role="tab" aria-controls="timeline" aria-selected="false">
+                <button class="nav-link" id="timeline-tab" data-bs-toggle="tab"
+                        data-bs-target="#timeline" type="button" role="tab" aria-controls="timeline" aria-selected="false">
                     Geração de Timeline
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link" id="sentiment-tab"
-                        data-bs-toggle="tab" data-bs-target="#sentiment" type="button"
-                        role="tab" aria-controls="sentiment" aria-selected="false">
+                <button class="nav-link" id="sentiment-tab" data-bs-toggle="tab"
+                        data-bs-target="#sentiment" type="button" role="tab" aria-controls="sentiment" aria-selected="false">
                     Análise de Sentimentos
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link" id="content-tab"
-                        data-bs-toggle="tab" data-bs-target="#content" type="button"
-                        role="tab" aria-controls="content" aria-selected="false">
+                <button class="nav-link" id="content-tab" data-bs-toggle="tab"
+                        data-bs-target="#content" type="button" role="tab" aria-controls="content" aria-selected="false">
                     Representação Social
                 </button>
             </li>
             <li class="nav-item">
-                <button class="nav-link" id="cenarios-tab"
-                        data-bs-toggle="tab" data-bs-target="#cenarios" type="button"
-                        role="tab" aria-controls="cenarios" aria-selected="false">
+                <button class="nav-link" id="cenarios-tab" data-bs-toggle="tab"
+                        data-bs-target="#cenarios" type="button" role="tab" aria-controls="cenarios" aria-selected="false">
                     Cenários
                 </button>
             </li>
         </ul>
 
         <div class="tab-content mt-3">
-            <!-- Aba de Entidades e Localidades -->
+            <!-- Aba de Entidades -->
             <div class="tab-pane fade show active" id="entities" role="tabpanel" aria-labelledby="entities-tab">
-                <button type="button" id="identifyEntitiesBtn" class="btn btn-primary mt-3">
-                    Identificar Entidades
-                </button>
+                <button type="button" id="identifyEntitiesBtn" class="btn btn-primary mt-3">Identificar Entidades</button>
                 <div id="entitiesResults" class="mt-3"></div>
                 <div id="mapContainer" class="mt-3"></div>
             </div>
 
-            <!-- Aba de Geração de Timeline -->
+            <!-- Aba de Timeline -->
             <div class="tab-pane fade" id="timeline" role="tabpanel" aria-labelledby="timeline-tab">
                 <form id="timelineForm">
                     <div class="mb-3">
                         <label for="timelineDropdown" class="form-label">Timelines Disponíveis</label>
-                        <select id="timelineDropdown" name="timelineDropdown" class="form-select"
-                                onfocus="loadTimelineList()">
+                        <select id="timelineDropdown" name="timelineDropdown" class="form-select" onfocus="loadTimelineList()">
                         </select>
                     </div>
                     <button type="button" id="timelineBtn" class="btn btn-primary">Gerar Timeline</button>
@@ -200,7 +197,7 @@
                 <div id="timelineResults" class="mt-3"></div>
             </div>
 
-            <!-- Aba de Análise de Sentimentos -->
+            <!-- Aba de Sentimentos -->
             <div class="tab-pane fade" id="sentiment" role="tabpanel" aria-labelledby="sentiment-tab">
                 <form id="sentimentForm">
                     <div class="mb-3">
@@ -249,6 +246,7 @@
 
             <!-- Aba de Cenários -->
             <div class="tab-pane fade" id="cenarios" role="tabpanel" aria-labelledby="cenarios-tab">
+                <!-- >>> ADAPTAÇÃO: Botão que dispara a rota /generate_cenarios revisada -->
                 <button type="button" id="generateCenariosBtn" class="btn btn-primary mt-3">Gerar Cenários</button>
                 <div id="cenariosResults" class="mt-3"></div>
             </div>

@@ -52,7 +52,6 @@ def create_db_if_not_exists(db_path: str):
         """)
 
         # Tabela para guardar as entidades, localidades, tópicos e resumos (entity_finder)
-        # Adicionamos 'conteudo TEXT' para corrigir "no such column: conteudo"
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS entity_finder (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,12 +62,12 @@ def create_db_if_not_exists(db_path: str):
                 resumo TEXT,
                 pessoas_organizacoes TEXT,
                 dados_mapa TEXT,
-                conteudo TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                conteudo TEXT
             )
         """)
 
-        # Tabela para a timeline (prompt + xml retornado, texto analisado etc.)
+        # Tabela para a timeline
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS timeline (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,24 +75,24 @@ def create_db_if_not_exists(db_path: str):
                 prompt TEXT,
                 texto_analisado TEXT,
                 xml_final TEXT,
-                conteudo TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                conteudo TEXT
             )
         """)
 
-        # Tabela para a análise de sentimentos (caminho dos gráficos, etc.)
+        # Tabela para a análise de sentimentos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analise_sentimentos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 hash TEXT NOT NULL,
                 texto_analisado TEXT,
                 caminhos_imagens TEXT,
-                conteudo TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                conteudo TEXT
             )
         """)
 
-        # Tabela para as representações sociais (gráficos, tabelas, etc.)
+        # Tabela para as representações sociais
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS representacoes_sociais (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,8 +101,8 @@ def create_db_if_not_exists(db_path: str):
                 filtros_utilizados TEXT,
                 caminhos_imagens TEXT,
                 conteudos_tabelas TEXT,
-                conteudo TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                conteudo TEXT
             )
         """)
 
@@ -130,7 +129,7 @@ def create_db_if_not_exists(db_path: str):
             )
         """)
 
-        # Tabela 'contexto' (antes era 'cenarios'):
+        # Tabela 'contexto'
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS contexto (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,12 +139,13 @@ def create_db_if_not_exists(db_path: str):
                 topicos TEXT,
                 resumo TEXT,
                 conteudos_tabelas TEXT,
-                conteudo TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                conteudo TEXT
             )
         """)
+
     else:
-        # Se o DB já existe, garantimos que as colunas novas existam (ALTER TABLE):
+        # Se o DB já existe, garantimos as colunas
         try:
             cursor.execute("ALTER TABLE conteudos_ingestao ADD COLUMN arquivos_enviados TEXT")
         except:
@@ -155,19 +155,8 @@ def create_db_if_not_exists(db_path: str):
         except:
             pass
 
-        # Renomear colunas em links_raspados (link->links / conteudo->conteudos) se preciso:
-        try:
-            cursor.execute("SELECT link FROM links_raspados LIMIT 1")
-            pass
-        except:
-            pass
-        try:
-            cursor.execute("SELECT conteudo FROM links_raspados LIMIT 1")
-            pass
-        except:
-            pass
-
-        # entity_finder: adiciona 'conteudo TEXT' se não existir
+        # Tabelas de análise:
+        # entity_finder
         for col in ["prompt", "texto_analisado", "topicos_principais", "resumo",
                     "pessoas_organizacoes", "dados_mapa", "conteudo"]:
             try:
@@ -175,7 +164,7 @@ def create_db_if_not_exists(db_path: str):
             except:
                 pass
 
-        # timeline: adiciona colunas se não existirem
+        # timeline
         for col in ["prompt", "texto_analisado", "xml_final", "conteudo"]:
             try:
                 cursor.execute(f"ALTER TABLE timeline ADD COLUMN {col} TEXT")
@@ -190,21 +179,18 @@ def create_db_if_not_exists(db_path: str):
                 pass
 
         # representacoes_sociais
-        for col in ["texto_analisado", "filtros_utilizados", "caminhos_imagens",
-                    "conteudos_tabelas", "conteudo"]:
+        for col in ["texto_analisado", "filtros_utilizados", "caminhos_imagens", "conteudos_tabelas", "conteudo"]:
             try:
                 cursor.execute(f"ALTER TABLE representacoes_sociais ADD COLUMN {col} TEXT")
             except:
                 pass
 
-        # Renomear 'cenarios' -> 'contexto' se existir; adicionar colunas
         try:
             cursor.execute("ALTER TABLE cenarios RENAME TO contexto")
         except:
             pass
 
-        for col in ["texto_analisado", "prompt", "topicos", "resumo",
-                    "conteudos_tabelas", "conteudo"]:
+        for col in ["texto_analisado", "prompt", "topicos", "resumo", "conteudos_tabelas", "conteudo"]:
             try:
                 cursor.execute(f"ALTER TABLE contexto ADD COLUMN {col} TEXT")
             except:
@@ -230,12 +216,11 @@ def check_if_exists(db_path: str, table_name: str, hash_value: str) -> str:
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # Atenção: Precisamos de uma coluna 'conteudo' na tabela para memoize_result
         query = f"SELECT conteudo FROM {table_name} WHERE hash = ?"
         cursor.execute(query, (hash_value,))
         row = cursor.fetchone()
         if row:
-            return row[0]
+            return row[0]  # Conteúdo já existente
         else:
             return None
     finally:
@@ -247,6 +232,7 @@ def insert_content(db_path: str, table_name: str, hash_value: str, content: str)
     """
     if not db_path:
         return
+
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -261,8 +247,7 @@ def insert_content_ingestao(db_path: str, fonte: str, conteudo: str,
                             arquivos_enviados: str = None,
                             texto_copiado: str = None):
     """
-    Insere um registro na tabela de conteúdos de ingestão, calculando o hash do conteúdo
-    e preenchendo as colunas específicas, se fornecidas.
+    Insere um registro na tabela de conteúdos de ingestão.
     """
     if not db_path:
         return
@@ -276,20 +261,15 @@ def insert_content_ingestao(db_path: str, fonte: str, conteudo: str,
             (fonte, conteudo, arquivos_enviados, texto_copiado, hash, timestamp)
             VALUES (?, ?, ?, ?, ?, ?)
         """
-        cursor.execute(query, (
-            fonte, conteudo,
-            arquivos_enviados or None,
-            texto_copiado or None,
-            hash_value, current_ts
-        ))
+        cursor.execute(query, (fonte, conteudo, arquivos_enviados or None,
+                               texto_copiado or None, hash_value, current_ts))
         conn.commit()
     finally:
         conn.close()
 
 def insert_link_raspado(db_path: str, link: str, conteudo: str):
     """
-    Insere um registro na tabela de links_raspados, calculando o hash do texto obtido,
-    preenchendo colunas 'links' e 'conteudos'.
+    Insere um registro na tabela de links_raspados, calculando o hash do texto obtido.
     """
     if not db_path:
         return
@@ -309,11 +289,11 @@ def insert_link_raspado(db_path: str, link: str, conteudo: str):
 
 def memoize_result(db_path: str, table_name: str, unique_content: str):
     """
-    Verifica se 'unique_content' já foi processado, usando a lógica de hash + check_if_exists.
-    Se existir no DB, retorna seu conteúdo; senão, retorna None.
+    Verifica se o 'unique_content' já foi processado (hash) e retornado.
     """
     if not db_path:
         return None
+
     hash_val = calculate_hash(unique_content)
     existing = check_if_exists(db_path, table_name, hash_val)
     if existing:
@@ -322,10 +302,12 @@ def memoize_result(db_path: str, table_name: str, unique_content: str):
 
 def store_memo_result(db_path: str, table_name: str, unique_content: str, processed_output: str):
     """
-    Armazena 'processed_output' relacionado a 'unique_content' caso ainda não exista no DB.
+    Armazena o resultado de um processamento (processed_output) relacionado ao
+    conteúdo (unique_content), caso ainda não esteja no banco.
     """
     if not db_path:
         return
+
     hash_val = calculate_hash(unique_content)
     existing = check_if_exists(db_path, table_name, hash_val)
     if not existing:
@@ -333,10 +315,11 @@ def store_memo_result(db_path: str, table_name: str, unique_content: str, proces
 
 def insert_api_call(db_path: str, api_name: str, parametros: str, resposta: str):
     """
-    Exemplo de registro de chamada à API (pode ser usado no entity_finder ou outro script).
+    Exemplo de registro de chamada à API.
     """
     if not db_path:
         return
+
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -364,25 +347,24 @@ def list_existing_dbs(db_folder: str) -> list:
 def save_entidades(db_path: str, prompt: str, texto_analisado: str,
                    topicos: list, resumo: str, pessoas: list, dados_mapa: str):
     """
-    Salva as entidades e localidades na tabela entity_finder, associando colunas apropriadas.
+    Salva as entidades e localidades na tabela entity_finder.
     """
-    if not db_path or not texto_analisado.strip():
+    if not db_path:
         return
-
+    if not (prompt or topicos or resumo):
+        # Mesmo se texto_analisado estiver vazio, forçamos salvamento se prompt ou topicos existirem
+        pass
     conteudo_base = f"prompt:{prompt}\ntexto:{texto_analisado}\ntopicos:{topicos}\nresumo:{resumo}"
     hash_val = calculate_hash(conteudo_base)
     current_ts = time.strftime('%Y%m%d_%H%M%S')
-
     topicos_str = ', '.join(topicos) if isinstance(topicos, list) else str(topicos)
-    pessoas_str = str(pessoas)  # Ex.: JSON string, etc.
-
+    pessoas_str = str(pessoas)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     query = """
         INSERT INTO entity_finder
-        (hash, prompt, texto_analisado, topicos_principais, resumo,
-         pessoas_organizacoes, dados_mapa, conteudo, timestamp)
+        (hash, prompt, texto_analisado, topicos_principais, resumo, pessoas_organizacoes, dados_mapa, conteudo, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     cursor.execute(query, (
@@ -393,9 +375,8 @@ def save_entidades(db_path: str, prompt: str, texto_analisado: str,
     conn.close()
 
 def save_timeline(db_path: str, prompt: str, texto_analisado: str, xml_final: str):
-    if not db_path or not texto_analisado.strip():
+    if not db_path:
         return
-
     conteudo_base = f"prompt:{prompt}\ntexto:{texto_analisado}\nxml:{xml_final}"
     hash_val = calculate_hash(conteudo_base)
     current_ts = time.strftime('%Y%m%d_%H%M%S')
@@ -412,9 +393,8 @@ def save_timeline(db_path: str, prompt: str, texto_analisado: str, xml_final: st
     conn.close()
 
 def save_sentimentos(db_path: str, texto_analisado: str, caminhos_imagens: str):
-    if not db_path or not texto_analisado.strip():
+    if not db_path:
         return
-
     conteudo_base = f"sentimentos base do texto:\n{texto_analisado}"
     hash_val = calculate_hash(conteudo_base)
     current_ts = time.strftime('%Y%m%d_%H%M%S')
@@ -433,9 +413,8 @@ def save_sentimentos(db_path: str, texto_analisado: str, caminhos_imagens: str):
 def save_representacao_social(db_path: str, texto_analisado: str,
                               filtros_utilizados: str, caminhos_imagens: str,
                               conteudos_tabelas: str):
-    if not db_path or not texto_analisado.strip():
+    if not db_path:
         return
-
     conteudo_base = f"RepresentacaoSocial:\n{texto_analisado}\nFiltros:{filtros_utilizados}"
     hash_val = calculate_hash(conteudo_base)
     current_ts = time.strftime('%Y%m%d_%H%M%S')
@@ -444,8 +423,7 @@ def save_representacao_social(db_path: str, texto_analisado: str,
     cursor = conn.cursor()
     query = """
         INSERT INTO representacoes_sociais
-        (hash, texto_analisado, filtros_utilizados, caminhos_imagens,
-         conteudos_tabelas, conteudo, timestamp)
+        (hash, texto_analisado, filtros_utilizados, caminhos_imagens, conteudos_tabelas, conteudo, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """
     cursor.execute(query, (
@@ -458,9 +436,8 @@ def save_representacao_social(db_path: str, texto_analisado: str,
 
 def save_contexto(db_path: str, texto_analisado: str, prompt: str,
                   topicos: str, resumo: str, conteudos_tabelas: str):
-    if not db_path or not texto_analisado.strip():
+    if not db_path:
         return
-
     conteudo_base = f"contexto:\n{texto_analisado}\nprompt:{prompt}\ntopicos:{topicos}\nresumo:{resumo}"
     hash_val = calculate_hash(conteudo_base)
     current_ts = time.strftime('%Y%m%d_%H%M%S')

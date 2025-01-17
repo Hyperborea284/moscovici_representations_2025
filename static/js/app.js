@@ -1,5 +1,3 @@
-// /static/js/app.js
-
 function loadTimelineList() {
     $.ajax({
         url: '/list_timelines',
@@ -29,19 +27,16 @@ $(document).ready(function () {
     const counts = $('#counts');
     const linksErrorList = $('#linksErrorList');
 
-    // Seleção de DB
     const dbSelectDropdown = $('#dbSelectDropdown');
     const loadDbBtn = $('#loadDbBtn');
     const saveDbBtn = $('#saveDbBtn');
-    const deleteDbBtn = $('#deleteDbBtn');
+    const deleteDbBtn = $('#deleteDbBtn')
     const dbLoadMessage = $('#dbLoadMessage');
 
-    // LlamaIndex
     const llamaQueryInput = $('#llamaQueryInput');
     const sendLlamaBtn = $('#sendLlamaBtn');
     const llamaResponses = $('#llamaResponses');
 
-    // Função para obter a lista de DBs
     function refreshDbList() {
         $.ajax({
             url: '/select_db',
@@ -68,10 +63,8 @@ $(document).ready(function () {
         }
     }
 
-    // Carregamos a lista de DBs ao iniciar
     refreshDbList();
 
-    // Botão "Carregar DB Selecionado"
     loadDbBtn.on('click', function () {
         const selectedDb = dbSelectDropdown.val();
         if (!selectedDb) {
@@ -86,6 +79,8 @@ $(document).ready(function () {
                 if (data.status === "success") {
                     dbLoadMessage.text(`DB "${selectedDb}" carregado com sucesso!`)
                                  .show().fadeOut(3000);
+                    // >>> ADAPTAÇÃO: Atualiza título do documento com o DB selecionado
+                    document.title = `Ephor - Análise de Conteúdo - ${selectedDb}`;
                 }
             },
             error: function (xhr) {
@@ -95,7 +90,7 @@ $(document).ready(function () {
         });
     });
 
-    // Botão "Salvar no DB"
+    // Botão Salvar no DB
     saveDbBtn.on('click', function() {
         $.ajax({
             url: '/save_to_db',
@@ -114,7 +109,7 @@ $(document).ready(function () {
         });
     });
 
-    // Botão "Excluir DB Selecionado"
+    // >>> ADAPTAÇÃO: Botão Remover DB (com popup de confirmação)
     deleteDbBtn.on('click', function() {
         const selectedDb = dbSelectDropdown.val();
         if (!selectedDb) {
@@ -132,6 +127,8 @@ $(document).ready(function () {
                 if (data.status === "success") {
                     alert(`DB "${selectedDb}" foi excluído.`);
                     refreshDbList();
+                    // Caso queira resetar o título
+                    document.title = "Ephor - Análise de Conteúdo";
                 } else {
                     alert("Erro ao excluir DB: " + (data.error || data.message));
                 }
@@ -142,14 +139,13 @@ $(document).ready(function () {
         });
     });
 
-    // Perguntas via LlamaIndex (exemplo)
+    // >>> ADAPTAÇÃO: Corrigir rota /llama_query (existe agora em app.py)
     sendLlamaBtn.on('click', function() {
         const question = llamaQueryInput.val().trim();
         if (!question) {
             alert("Digite uma pergunta.");
             return;
         }
-        // Rota hipotética /llama_query
         $.ajax({
             url: '/llama_query',
             type: 'POST',
@@ -159,8 +155,9 @@ $(document).ready(function () {
             success: function(data) {
                 appendLlamaMessage(question, data.answer);
             },
-            error: function() {
-                alert("Erro ao consultar LlamaIndex. Verifique o servidor.");
+            error: function(xhr) {
+                const resp = xhr.responseJSON || {};
+                alert(resp.error || "Erro ao consultar LlamaIndex. Verifique o servidor.");
             }
         });
     });
@@ -173,7 +170,6 @@ $(document).ready(function () {
         `).scrollTop(llamaResponses[0].scrollHeight);
     }
 
-    // Timeline: ao mudar o dropdown
     $('#timelineDropdown').on('change', function () {
         const filename = $(this).val();
         if (filename) {
@@ -218,7 +214,6 @@ $(document).ready(function () {
         });
     }
 
-    // Conflito de fontes
     function showSourceConflictPopup(options, onSelect) {
         let message = '<p>Você preencheu mais de uma fonte de texto:</p><ul>';
         options.forEach(opt => {
@@ -226,7 +221,7 @@ $(document).ready(function () {
             if (opt === 'text') message += '<li>Texto Copiado</li>';
             if (opt === 'links') message += '<li>Links</li>';
         });
-        message += '</ul><p>Escolha qual fonte deseja usar:</p>';
+        message += '</ul><p>Escolha qual fonte deseja usar ou use todas:</p>';
 
         const popup = $(`
             <div id="sourceConflictPopup" style="position: fixed; top: 50%; left: 50%;
@@ -250,6 +245,13 @@ $(document).ready(function () {
             });
             popup.append(btn);
         });
+
+        const btnAll = $(`<button class="btn btn-success m-1">Usar Corpus Unificado</button>`);
+        btnAll.on('click', function() {
+            popup.remove();
+            onSelect('unificado');
+        });
+        popup.append(btnAll);
 
         $('body').append(popup);
     }
@@ -275,7 +277,6 @@ $(document).ready(function () {
         });
     }
 
-    // Botão "Enviar Conteúdo"
     $('#ingestBtn').on('click', function () {
         linksErrorList.empty().hide();
 
@@ -290,7 +291,29 @@ $(document).ready(function () {
 
         if (sourcesUsed.length > 1) {
             showSourceConflictPopup(sourcesUsed, (selectedSource) => {
-                if (selectedSource === 'file') {
+                if (selectedSource === 'unificado') {
+                    let formData = new FormData($('#ingestForm')[0]);
+                    formData.append('use_all_sources', 'sim');
+                    $.ajax({
+                        url: '/ingest_content',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function (resp) {
+                            if (resp.status === "success_unificado") {
+                                ingestContent.addClass('d-none');
+                                processSentiment();
+                            } else if (resp.error) {
+                                alert(resp.error);
+                            }
+                        },
+                        error: function () {
+                            alert("Erro ao enviar conteúdo unificado.");
+                        }
+                    });
+                }
+                else if (selectedSource === 'file') {
                     let formData = new FormData($('#ingestForm')[0]);
                     formData.delete('text');
                     formData.delete('links');
@@ -339,19 +362,23 @@ $(document).ready(function () {
                         contentType: false,
                         success: function (data) {
                             loadingMsg.remove();
-                            ingestContent.addClass('d-none');
-                            if (data.html_fixed) {
-                                analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
-                                timestamp.html(data.html_fixed.timestamp || "");
-                                counts.html(data.html_fixed.counts || "");
+                            if (data.status === "success") {
+                                ingestContent.addClass('d-none');
+                                if (data.html_fixed) {
+                                    analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
+                                    timestamp.html(data.html_fixed.timestamp || "");
+                                    counts.html(data.html_fixed.counts || "");
+                                }
+                                if (data.bad_links && data.bad_links.length > 0) {
+                                    linksErrorList.html(
+                                        "<strong>Links com falha:</strong><br>" +
+                                        data.bad_links.join("<br>")
+                                    ).show();
+                                }
+                                fixedContent.removeClass('d-none');
+                            } else if (data.error) {
+                                alert(data.error);
                             }
-                            if (data.bad_links && data.bad_links.length > 0) {
-                                linksErrorList.html(
-                                    "<strong>Links com falha:</strong><br>" +
-                                    data.bad_links.join("<br>")
-                                ).show();
-                            }
-                            fixedContent.removeClass('d-none');
                         },
                         error: function () {
                             loadingMsg.remove();
@@ -361,7 +388,7 @@ $(document).ready(function () {
                 }
             });
         } else {
-            // Sem conflito
+            // Nenhum conflito
             if (fileInput) {
                 let formData = new FormData($('#ingestForm')[0]);
                 $.ajax({
@@ -409,19 +436,23 @@ $(document).ready(function () {
                     contentType: false,
                     success: function (data) {
                         loadingMsg.remove();
-                        ingestContent.addClass('d-none');
-                        if (data.html_fixed) {
-                            analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
-                            timestamp.html(data.html_fixed.timestamp || "");
-                            counts.html(data.html_fixed.counts || "");
+                        if (data.status === "success") {
+                            ingestContent.addClass('d-none');
+                            if (data.html_fixed) {
+                                analyzedText.html(data.html_fixed.analyzedText || "Erro texto analisado.");
+                                timestamp.html(data.html_fixed.timestamp || "");
+                                counts.html(data.html_fixed.counts || "");
+                            }
+                            if (data.bad_links && data.bad_links.length > 0) {
+                                linksErrorList.html(
+                                    "<strong>Links com falha:</strong><br>" +
+                                    data.bad_links.join("<br>")
+                                ).show();
+                            }
+                            fixedContent.removeClass('d-none');
+                        } else if (data.error) {
+                            alert(data.error);
                         }
-                        if (data.bad_links && data.bad_links.length > 0) {
-                            linksErrorList.html(
-                                "<strong>Links com falha:</strong><br>" +
-                                data.bad_links.join("<br>")
-                            ).show();
-                        }
-                        fixedContent.removeClass('d-none');
                     },
                     error: function () {
                         loadingMsg.remove();
@@ -434,7 +465,6 @@ $(document).ready(function () {
         }
     });
 
-    // Botão Reset
     $('#resetBtn').on('click', function () {
         $.post('/reset_content', function () {
             fixedContent.addClass('d-none');
@@ -446,7 +476,6 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Representação Social
     $('#contentBtn').on('click', function () {
         const formData = new FormData($('#contentForm')[0]);
         $.ajax({
@@ -478,7 +507,6 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Sentimentos
     $('#sentimentBtn').on('click', function () {
         const formData = new FormData($('#sentimentForm')[0]);
         $.ajax({
@@ -505,7 +533,6 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Timeline
     $('#timelineBtn').on('click', function () {
         const textInput = $('#inputText').val().trim();
         $.ajax({
@@ -526,7 +553,6 @@ $(document).ready(function () {
         });
     });
 
-    // Botão de Identificar Entidades
     $('#identifyEntitiesBtn').on('click', function () {
         $.ajax({
             url: '/identify_entities',
@@ -610,12 +636,12 @@ $(document).ready(function () {
         return html;
     }
 
-    // Botão de Gerar Cenários
     $('#generateCenariosBtn').on('click', function () {
         $.ajax({
             url: '/generate_cenarios',
             type: 'POST',
             success: function (data) {
+                // >>> ADAPTAÇÃO: agora data.html virá do prospect.py
                 if (data.html) {
                     $('#cenariosResults').html(data.html);
                 } else {
@@ -628,3 +654,4 @@ $(document).ready(function () {
         });
     });
 });
+

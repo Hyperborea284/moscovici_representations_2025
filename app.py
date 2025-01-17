@@ -16,6 +16,9 @@ from modules.representacao_social import process_representacao_social
 from modules.goose_scraper import scrape_links
 from modules.timeline_generator import TimelineGenerator, TimelineParser
 from modules.entity_finder import EntityClassifier, process_text
+from modules.prospect import TextProcessor, ScenarioClassifier
+
+
 # db_manager
 from modules.db_manager import (
     get_db_path,
@@ -31,6 +34,35 @@ from modules.db_manager import (
     save_representacao_social,
     save_contexto
 )
+
+# >>>> Início das Funções Auxiliares adicionadas <<<<
+
+import sqlite3
+
+def fetch_last_ingested_content(db_path: str):
+    """
+    Recupera o último conteúdo inserido na tabela conteudos_ingestao,
+    ordenando pelo id desc, para utilizar em análises subsequentes.
+    """
+    if not db_path or not os.path.isfile(db_path):
+        return None
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT conteudo
+            FROM conteudos_ingestao
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            return {"conteudo": row[0]}
+    finally:
+        conn.close()
+    return None
+
+# >>>> Fim das Funções Auxiliares adicionadas <<<<
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -52,12 +84,12 @@ os.makedirs(DB_FOLDER, exist_ok=True)
 
 entity_classifier = EntityClassifier(openai_api_key, serp_api_key)
 
-# Conteúdo compartilhado global (mantém o texto atual, resultados etc.)
+# Mantido: conteúdo compartilhado global, mas sem mais uso para texto
 shared_content = {
-    "text": None,
-    "html_fixed": None,
-    "html_dynamic": None,
-    "algorithm": None,
+    "text": None,          # <--- Não mais utilizado
+    "html_fixed": None,    # <--- Não mais utilizado
+    "html_dynamic": None,  # <--- Não mais utilizado
+    "algorithm": None,     # <--- Não mais utilizado
     "bad_links": [],
     "timeline_file": None,
     "entities": None,
@@ -134,7 +166,7 @@ def save_to_db():
         save_entidades(
             db_path=db_path,
             prompt=shared_content.get("prompt", ""),
-            texto_analisado=shared_content.get("text", ""),
+            texto_analisado="",  # Texto não mais usado via cache
             topicos=shared_content["entities"].get("topicos", []),
             resumo=shared_content["entities"].get("resumo", ""),
             pessoas=shared_content["entities"].get("pessoas", []),
@@ -146,15 +178,16 @@ def save_to_db():
         save_timeline(
             db_path=db_path,
             prompt=shared_content.get("prompt", ""),
-            texto_analisado=shared_content.get("text", ""),
+            texto_analisado="",  # Texto não mais usado via cache
             xml_final=shared_content.get("xml_final", "")
         )
 
     # Se existir análise de sentimentos
-    if shared_content.get("html_dynamic"):
+    # (html_dynamic e html_fixed não mais mantidos em shared_content)
+    if shared_content.get("counts"):
         save_sentimentos(
             db_path=db_path,
-            texto_analisado=shared_content.get("text", ""),
+            texto_analisado="",  # Texto não mais usado via cache
             caminhos_imagens="(imagens geradas em pasta static, se houver)"
         )
 
@@ -162,7 +195,7 @@ def save_to_db():
     if shared_content.get("filtros_utilizados") or shared_content.get("conteudos_tabelas"):
         save_representacao_social(
             db_path=db_path,
-            texto_analisado=shared_content.get("text", ""),
+            texto_analisado="",  # Texto não mais usado via cache
             filtros_utilizados=shared_content.get("filtros_utilizados", ""),
             caminhos_imagens=shared_content.get("caminhos_imagens", ""),
             conteudos_tabelas=shared_content.get("conteudos_tabelas", "")
@@ -172,7 +205,7 @@ def save_to_db():
     if shared_content.get("topicos") or shared_content.get("resumo"):
         save_contexto(
             db_path=db_path,
-            texto_analisado=shared_content.get("text", ""),
+            texto_analisado="",  # Texto não mais usado via cache
             prompt=shared_content.get("prompt", ""),
             topicos=shared_content.get("topicos", ""),
             resumo=shared_content.get("resumo", ""),
@@ -184,11 +217,10 @@ def save_to_db():
 @app.route('/ingest_content', methods=['POST'])
 def ingest_content():
     """
-    Ingestão de texto via arquivo .txt ou texto copiado,
-    e subsequente análise de sentimentos.
+    Ingestão de texto via arquivo .txt ou texto copiado.
+    Agora o texto não é mais armazenado em shared_content,
+    e sim diretamente no DB. Em seguida, é lido do DB para análise.
     """
-    global shared_content
-
     db_path = shared_content.get("selected_db")
     if not db_path or not os.path.isfile(db_path):
         return jsonify({"error": "Nenhum DB válido selecionado"}), 400
@@ -214,7 +246,6 @@ def ingest_content():
     # Ingestão de arquivo
     if uploaded_file and uploaded_file.filename:
         fonte_usada = "arquivo"
-        # Lê o conteúdo do arquivo diretamente
         final_text = uploaded_file.read().decode('utf-8', errors='replace')
         insert_content_ingestao(
             db_path, fonte_usada, final_text,
@@ -234,25 +265,22 @@ def ingest_content():
 
     # Ingestão de links (nesta rota não devíamos, mas se chegar aqui):
     elif links_input:
-        fonte_usada = "links"
-        # Em tese, preferimos a rota /ingest_links
         return jsonify({"error": "Use /ingest_links para enviar links."}), 400
 
     if not final_text.strip():
         return jsonify({"error": "Nenhum conteúdo fornecido"}), 400
 
-    # Usamos a timestamp do DB para exibir data se quisermos,
-    # mas aqui continuamos gerando uma local (exibição interna):
-    shared_content["text"] = final_text
-    shared_content["algorithm"] = "naive_bayes"
-    shared_content["timestamp"] = time.strftime('%Y%m%d_%H%M%S')
+    # Lemos imediatamente do DB para prosseguir a análise
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Erro ao recuperar conteúdo do DB"}), 500
+
+    analysis_text = last_entry["conteudo"]
 
     # Executa análise de sentimentos
     try:
-        html_fixed, html_dynamic, num_pars, num_sents, _ = sentiment_analyzer.execute_analysis_text(final_text)
-        shared_content["html_fixed"] = html_fixed
-        shared_content["html_dynamic"] = html_dynamic
-        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+        html_fixed, html_dynamic, num_pars, num_sents, _ = sentiment_analyzer.execute_analysis_text(analysis_text)
+        # Retornamos no JSON (mas não armazenamos mais em shared_content)
         return jsonify({"status": "success"})
     except Exception as e:
         print(f"Erro durante a ingestão de conteúdo: {e}")
@@ -261,9 +289,9 @@ def ingest_content():
 @app.route('/ingest_links', methods=['POST'])
 def ingest_links():
     """
-    Ingestão de texto por links, com raspagem e subsequente análise de sentimentos.
+    Ingestão de texto por links, com raspagem e subsequente análise de sentimentos,
+    armazenando o conteúdo somente no DB.
     """
-    global shared_content
     db_path = shared_content.get("selected_db")
     if not db_path or not os.path.isfile(db_path):
         return jsonify({"error": "Nenhum DB válido selecionado"}), 400
@@ -278,33 +306,42 @@ def ingest_links():
 
     try:
         combined_text, bad_links = scrape_links(links_list)
-        shared_content["text"] = combined_text
-        shared_content["bad_links"] = bad_links
     except Exception as e:
         print(f"Erro durante raspagem de links: {e}")
         return jsonify({"error": f"Erro ao raspar links: {str(e)}"}), 500
 
     # Registrar cada link e seu conteúdo
+    # Observação: nesta versão minimalista, todos os links raspados inserem o mesmo 'combined_text'
+    # mas seria possível dividir.
     for link in links_list:
-        insert_link_raspado(db_path, link, shared_content["text"])
+        insert_link_raspado(db_path, link, combined_text)
 
-    shared_content["algorithm"] = "naive_bayes"
-    shared_content["timestamp"] = time.strftime('%Y%m%d_%H%M%S')
+    if not combined_text.strip():
+        return jsonify({"error": "Não foi possível obter conteúdo dos links"}), 400
+
+    # Também registramos na tabela conteudos_ingestao (fonte='links'):
+    insert_content_ingestao(
+        db_path, "links", combined_text,
+        arquivos_enviados=None,
+        texto_copiado=None
+    )
+
+    # Lemos do DB para análise
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Erro ao recuperar conteúdo do DB"}), 500
+
+    analysis_text = last_entry["conteudo"]
 
     # Executa análise de sentimentos
     try:
-        html_fixed, html_dynamic, num_pars, num_sents, _ = sentiment_analyzer.execute_analysis_text(
-            shared_content["text"]
-        )
-        shared_content["html_fixed"] = html_fixed
-        shared_content["html_dynamic"] = html_dynamic
-        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+        html_fixed, html_dynamic, num_pars, num_sents, _ = sentiment_analyzer.execute_analysis_text(analysis_text)
         return jsonify({
             "status": "success",
             "bad_links": bad_links,
             "html_fixed": {
                 "analyzedText": html_fixed,
-                "timestamp": shared_content["timestamp"],
+                "timestamp": time.strftime('%Y%m%d_%H%M%S'),
                 "counts": f"Parágrafos: {num_pars}, Frases: {num_sents}",
             },
             "html_dynamic": html_dynamic
@@ -315,8 +352,11 @@ def ingest_links():
 
 @app.route('/reset_content', methods=['POST'])
 def reset_content():
+    """
+    Zera somente o shared_content, exceto pelo selected_db. 
+    Observando que agora o texto está no DB, não no cache.
+    """
     global shared_content
-    # Preserve apenas o selected_db; zere o restante
     old_db = shared_content.get("selected_db")
     shared_content = {
         "text": None,
@@ -344,29 +384,37 @@ def reset_content():
 @app.route('/process_sentiment', methods=['POST'])
 def process_sentiment():
     """
-    Retorna o HTML fixo/dinâmico já gerado pela análise de sentimentos.
+    Retorna o HTML fixo/dinâmico gerado, mas agora sem usar shared_content["text"].
+    Faz nova análise com base no último conteúdo do DB, e retorna o HTML.
     """
-    if not shared_content.get("text"):
-        return jsonify({"error": "No content provided"}), 400
-    if not shared_content.get("algorithm"):
-        return jsonify({"error": "No algorithm selected"}), 400
+    db_path = shared_content.get("selected_db")
+    if not db_path or not os.path.isfile(db_path):
+        return jsonify({"error": "Nenhum DB selecionado"}), 400
 
-    if not shared_content.get("html_fixed") or not shared_content.get("html_dynamic"):
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Sem conteúdo no DB para analisar"}), 400
+    analysis_text = last_entry["conteudo"]
+
+    # Reexecuta a análise, gera o HTML e retorna
+    try:
+        html_fixed, html_dynamic, num_pars, num_sents, _ = sentiment_analyzer.execute_analysis_text(analysis_text)
+        return jsonify({
+            "html_fixed": {
+                "analyzedText": html_fixed,
+                "timestamp": time.strftime('%Y%m%d_%H%M%S'),
+                "counts": f"Parágrafos: {num_pars}, Frases: {num_sents}",
+            },
+            "html_dynamic": html_dynamic
+        })
+    except Exception:
         return jsonify({"error": "HTML content not generated yet."}), 400
-
-    return jsonify({
-        "html_fixed": {
-            "analyzedText": shared_content["html_fixed"],
-            "timestamp": shared_content.get("timestamp", ""),
-            "counts": shared_content.get("counts", ""),
-        },
-        "html_dynamic": shared_content["html_dynamic"]
-    })
 
 @app.route('/select_algorithm_and_generate', methods=['POST'])
 def select_algorithm_and_generate():
     """
     Seleciona o algoritmo e gera novamente a análise de sentimentos, se necessário.
+    Agora também busca o texto do DB em vez de shared_content["text"].
     """
     algorithm = request.form.get('algorithm', None)
     if not algorithm:
@@ -375,18 +423,21 @@ def select_algorithm_and_generate():
     if algorithm != "naive_bayes":
         return jsonify({"error": "Algoritmo não suportado"}), 400
 
-    shared_content["algorithm"] = algorithm
-    text = shared_content.get("text", "")
+    db_path = shared_content.get("selected_db")
+    if not db_path or not os.path.isfile(db_path):
+        return jsonify({"error": "Nenhum DB selecionado"}), 400
+
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Não há texto no DB para análise"}), 400
+
+    text = last_entry["conteudo"]
     if not text.strip():
         return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
 
     try:
-        html_fixed, html_dynamic, num_pars, num_sents, analysis_ts = sentiment_analyzer.execute_analysis_text(text)
-        shared_content["html_fixed"] = html_fixed
-        shared_content["html_dynamic"] = html_dynamic
-        # Não sobrescrever a timestamp do DB, mas podemos atualizar localmente
-        shared_content["timestamp"] = analysis_ts
-        shared_content["counts"] = f"Parágrafos: {num_pars}, Frases: {num_sents}"
+        # Gera novamente
+        sentiment_analyzer.execute_analysis_text(text)
         return jsonify({"status": "Análise concluída"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -394,24 +445,26 @@ def select_algorithm_and_generate():
 @app.route('/process', methods=['POST'])
 def process():
     """
-    Processa Representações Sociais. Retorna um dicionário com 'html', 'caminhos_imagens', etc.
-    e atualiza shared_content para posterior salvamento no DB.
+    Processa Representações Sociais, recuperando do DB.
     """
-    if not shared_content["text"]:
-        return jsonify({"error": "No content provided"}), 400
+    db_path = shared_content.get("selected_db")
+    if not db_path:
+        return jsonify({"error": "Nenhum DB selecionado"}), 400
 
-    # Corrigir: 'process_representacao_social' deve retornar um dicionário, não um Response.
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Nenhum texto no DB"}), 400
+
+    text_for_analysis = last_entry["conteudo"]
+    if not text_for_analysis.strip():
+        return jsonify({"error": "Texto no DB está vazio"}), 400
+
+    # Agora chamamos a função de representações sociais
     response_data = process_representacao_social(
-        shared_content["text"],
+        text_for_analysis,
         request.form,
         app.config['UPLOAD_FOLDER']
     )
-    # Supondo que 'process_representacao_social' agora retorne algo como:
-    # {
-    #   "html": "...",
-    #   "caminhos_imagens": "...",
-    #   "conteudos_tabelas": "..."
-    # }
     if not isinstance(response_data, dict):
         return jsonify({"error": "process_representacao_social não retornou dicionário."}), 500
 
@@ -430,35 +483,37 @@ def process():
 @app.route('/identify_entities', methods=['POST'])
 def identify_entities():
     """
-    Identifica entidades e localidades, salvando ou memoizando o resultado.
+    Identifica entidades e localidades, salvando ou memoizando o resultado, 
+    mas sem cache local de texto.
     """
-    text = shared_content.get("text", "")
-    if not text.strip():
-        return jsonify({"error": "Nenhum texto fornecido para análise"}), 400
-
     db_path = shared_content.get("selected_db")
     if not db_path or not os.path.isfile(db_path):
         return jsonify({"error": "Nenhum DB selecionado ou DB inexistente"}), 400
 
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry:
+        return jsonify({"error": "Nenhum texto disponível no DB"}), 400
+
+    analysis_text = last_entry["conteudo"]
+    if not analysis_text.strip():
+        return jsonify({"error": "Texto vazio no DB"}), 400
+
     try:
-        existing_result = memoize_result(db_path, "entity_finder", text)
+        existing_result = memoize_result(db_path, "entity_finder", analysis_text)
         if existing_result:
-            # Se já existe, parseamos
             import json
             try:
                 parsed = json.loads(existing_result)
                 shared_content["entities"] = parsed
                 return jsonify({"status": "cached", "entities": parsed})
             except:
-                # Se não parsear, retorna a string
                 shared_content["entities"] = existing_result
                 return jsonify({"status": "cached", "entities": existing_result})
 
         # Se não existe, processamos
-        result_obj = process_text(text, entity_classifier)  # dict ou similar
+        result_obj = process_text(analysis_text, entity_classifier)  # dict ou similar
         shared_content["entities"] = result_obj
-        # Armazena no DB
-        store_memo_result(db_path, "entity_finder", text, str(result_obj))
+        store_memo_result(db_path, "entity_finder", analysis_text, str(result_obj))
         return jsonify({"status": "success", "entities": result_obj})
     except Exception as e:
         print(f"Erro durante a identificação de entidades: {e}")
@@ -467,20 +522,20 @@ def identify_entities():
 @app.route('/generate_timeline', methods=['POST'])
 def generate_timeline():
     """
-    Gera timeline a partir do texto atual ou do form.
+    Gera timeline a partir do texto do DB ou do form.
     """
-    text = request.form.get("text", "")
-    if not text.strip():
-        # Se veio vazio no form, usa o que está no shared_content
-        text = shared_content.get("text", "")
-    if not text.strip():
-        return jsonify({"error": "Texto não fornecido"}), 400
-
+    text = request.form.get("text", "").strip()
     db_path = shared_content.get("selected_db")
     if not db_path:
         return jsonify({"error": "Nenhum DB selecionado"}), 400
 
-    # Verifica se já existe timeline memoizada para este texto
+    if not text:
+        # Se veio vazio, tentamos o DB
+        last_entry = fetch_last_ingested_content(db_path)
+        if not last_entry or not last_entry["conteudo"].strip():
+            return jsonify({"error": "Texto não fornecido nem disponível no DB"}), 400
+        text = last_entry["conteudo"]
+
     existing_result = memoize_result(db_path, "timeline", text)
     if existing_result:
         shared_content["timeline_file"] = existing_result
@@ -506,7 +561,6 @@ def view_timeline():
     if not os.path.isfile(timeline_file):
         return jsonify({"status": "error", "message": f"Arquivo não encontrado: {timeline_file}"}), 404
 
-    # Renderizamos timeline.html e retornamos em JSON
     html_str = render_template('timeline.html')
     return jsonify({"status": "success", "html": html_str, "filename": filename})
 
@@ -536,31 +590,37 @@ def timeline_data():
     except Exception as e:
         return jsonify({"error": f"Falha ao parsear {timeline_file}: {str(e)}"}), 500
 
-# Nova rota para gerar cenários (aba "Cenários")
 @app.route('/generate_cenarios', methods=['POST'])
 def generate_cenarios():
     """
-    Exemplo mínimo de geração de cenários, que poderia chamar um outro módulo.
-    Aqui, apenas setamos 'topicos', 'resumo' e 'conteudos_tabelas' no shared_content.
+    Agora, de fato chamamos o script 'prospect.py':
+      - Raspamos/resgatamos texto do DB
+      - Processamos com TextProcessor => geramos resumo/topicos
+      - Chamamos EntityClassifier => geramos cenários via OpenAI
+      - Retornamos o HTML
     """
-    text = shared_content.get("text", "")
-    if not text.strip():
+    db_path = shared_content.get("selected_db")
+    if not db_path:
+        return jsonify({"error": "Nenhum DB selecionado"}), 400
+
+    last_entry = fetch_last_ingested_content(db_path)
+    if not last_entry or not last_entry["conteudo"].strip():
         return jsonify({"error": "Nenhum texto disponível para gerar cenários."}), 400
 
-    # Exemplo: geramos algo simples
-    shared_content["topicos"] = "Cenário A, Cenário B, Cenário C"
-    shared_content["resumo"] = "Sumário sintético..."
-    shared_content["conteudos_tabelas"] = "Tabela de suporte..."
+    combined_text = last_entry["conteudo"]
+    
+    # 1) Gerar resumo e tópicos
+    tp = TextProcessor(combined_text)
+    resumo, topicos = tp.process_text()
 
-    # Montamos HTML de exemplo
-    html_resp = f"""
-    <h3>Cenários Possíveis</h3>
-    <ul>
-      <li>{shared_content["topicos"]}</li>
-    </ul>
-    <p>{shared_content["resumo"]}</p>
-    """
-
+    # 2) Gerar cenários com EntityClassifier
+    classifier = ScenarioClassifier(resumo, topicos, combined_text)
+    prompt_final = classifier.generate_prompt()
+    conteudo_openai = classifier.call_openai_api(prompt_final)
+    
+    # 3) Obter HTML resultante (cenários)
+    html_resp, cenarios_dict = classifier.generate_html(conteudo_openai)
+    
     return jsonify({"html": html_resp})
 
 @app.route('/api/', methods=['POST'])
@@ -581,12 +641,24 @@ def receive_dom():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Criação do DB ao iniciar a aplicação (para evitar duplicidade no modo debug, usamos 'WERKZEUG_RUN_MAIN')
+@app.route('/llama_query', methods=['POST'])
+def llama_query():
+    """
+    Rota de exemplo para atender /llama_query e evitar erro 404.
+    Aqui, retornamos uma resposta dummy ou integrariamos com LlamaIndex real.
+    """
+    data = request.get_json(force=True)
+    question = data.get("question", "")
+    if not question.strip():
+        return jsonify({"error": "Pergunta vazia"}), 400
+    # Exemplo: resposta dummy
+    resposta = f"Resposta simulada para: {question}"
+    return jsonify({"answer": resposta})
+
 if __name__ == "__main__":
     print(">>> Iniciando aplicação Flask em modo debug.")
     import os
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        # Só no reload "real" do Flask
         ts = time.strftime('%Y%m%d_%H%M%S')
         default_db_path = os.path.join(DB_FOLDER, f"{ts}.db")
         if not os.path.isfile(default_db_path):
